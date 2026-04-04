@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  gateway:
+    build: ./gateway
+    container_name: sme_gateway
+    ports:
+      - "5000:5000"
+    environment:
+      # Inject Docker internal DNS locations
+      - PRODUCT_SERVICE_URL=http://product:5001
+      - AI_SERVICE_URL=http://ai:5002
+      - ANALYTICS_SERVICE_URL=http://analytics:5003
+    depends_on:
+      - product
+      - ai
+      - analytics
+
+  product:
+    build: ./services/product-service
+    container_name: sme_product_service
+    ports:
+      - "5001:5001"
+
+  ai:
+    build: ./services/ai-service
+    container_name: sme_ai_service
+    ports:
+      - "5002:5002"
+    env_file:
+      # Pass the Gemini API Key directly into the container secretly
+      - ./services/ai-service/.env
+
+  analytics:
+    build: ./services/analytics-service
+    container_name: sme_analytics_service
+    ports:
+      - "5003:5003"
+    environment:
+      - PRODUCT_SERVICE_URL=http://product:5001
+    depends_on:
+      - product
+
+  frontend:
+    build: ./frontend
+    container_name: sme_frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - gateway
