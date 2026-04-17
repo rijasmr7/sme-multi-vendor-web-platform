@@ -11,16 +11,24 @@ services:
       - PRODUCT_SERVICE_URL=http://product:5001
       - AI_SERVICE_URL=http://ai:5002
       - ANALYTICS_SERVICE_URL=http://analytics:5003
+      - USER_SERVICE_URL=http://user:5004
     depends_on:
       - product
       - ai
       - analytics
+      - user
 
   product:
     build: ./services/product-service
     container_name: sme_product_service
     ports:
       - "5001:5001"
+
+  user:
+    build: ./services/user-service
+    container_name: sme_user_service
+    ports:
+      - "5004:5004"
 
   ai:
     build: ./services/ai-service
