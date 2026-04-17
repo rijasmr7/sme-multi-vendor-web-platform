@@ -46,6 +46,11 @@ services:
     env_file:
       # Pass the Gemini API Key directly into the container secretly
       - ./services/ai-service/.env
+    environment:
+      - DB_HOST=postgres
+      - USER_SERVICE_URL=http://user:5004
+    depends_on:
+      - postgres
 
   analytics:
     build: ./services/analytics-service
