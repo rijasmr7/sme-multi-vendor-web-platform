@@ -23,6 +23,10 @@ services:
     container_name: sme_product_service
     ports:
       - "5001:5001"
+    environment:
+      - DB_HOST=postgres
+    depends_on:
+      - postgres
 
   user:
     build: ./services/user-service
