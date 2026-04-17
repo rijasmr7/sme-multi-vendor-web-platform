@@ -1,8 +1,12 @@
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
+const axios = require('axios');
 
 const app = express();
+
+// We hit the user service inside Docker
+const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://user:5004';
 const PORT = 5001;
 
 app.use(cors());
@@ -43,6 +47,20 @@ app.post('/products', async (req, res) => {
 
     if (!vendorId || !name || !price || !category) {
         return res.status(400).json({ error: 'vendorId, name, price, and category are required' });
+    }
+
+    // MICROSERVICES API VALIDATION STEP
+    try {
+        console.log(`[POST] Validating vendorId: ${vendorId} with user-service...`);
+        await axios.get(`${USER_SERVICE_URL}/users/${vendorId}`);
+        console.log(`[POST] vendorId ${vendorId} is valid! Proceeding to create product.`);
+    } catch (error) {
+        console.error(`[POST] Error validating user:`, error.message);
+        // If the user-service returns 404, we return an error to the frontend!
+        if (error.response && error.response.status === 404) {
+            return res.status(400).json({ error: 'Invalid vendorId: User does not exist in the system' });
+        }
+        return res.status(500).json({ error: 'Failed to communicate with user-service' });
     }
 
     try {

@@ -124,6 +124,19 @@ app.post('/login', async (req, res) => {
     }
 });
 
+// 5. GET /users/:id API
+app.get('/users/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const query = `SELECT id, name, email, phone FROM users WHERE id = $1;`;
+        const { rows } = await pool.query(query, [id]);
+        if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
+        res.status(200).json(rows[0]);
+    } catch (error) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 // Start the server
 app.listen(PORT, () => {
     console.log(`User Service is running on http://localhost:${PORT}`);
