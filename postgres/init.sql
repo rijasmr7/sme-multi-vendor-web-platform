@@ -1,0 +1,4 @@
+CREATE DATABASE user_db;
+CREATE DATABASE product_db;
+CREATE DATABASE analytics_db;
+CREATE DATABASE ai_db;

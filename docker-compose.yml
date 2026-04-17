@@ -29,6 +29,10 @@ services:
     container_name: sme_user_service
     ports:
       - "5004:5004"
+    environment:
+      - DB_HOST=postgres
+    depends_on:
+      - postgres
 
   ai:
     build: ./services/ai-service
@@ -56,3 +60,20 @@ services:
       - "5173:5173"
     depends_on:
       - gateway
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: sme_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: sme_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  postgres_data:
