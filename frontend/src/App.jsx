@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Store, Apple, Shirt, Laptop, Croissant, Sparkles, Box, Loader2, Save, CheckCircle, BarChart3, DollarSign, Tag } from 'lucide-react';
+import { Store, Apple, Shirt, Laptop, Croissant, Sparkles, Box, Loader2, Save, CheckCircle, BarChart3, Users, Tag } from 'lucide-react';
 import './index.css';
 
 const API_GATEWAY = 'http://localhost:5000';
@@ -8,7 +8,7 @@ const API_GATEWAY = 'http://localhost:5000';
 function App() {
   const [selectedType, setSelectedType] = useState('');
   const [products, setProducts] = useState([]);
-  const [stats, setStats] = useState(null); // Step 12: Analytics Dashboard state
+  const [stats, setStats] = useState(null); // Real-time PostgreSQL stats
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
@@ -18,9 +18,8 @@ function App() {
   const fetchStats = async () => {
     try {
       const response = await axios.get(`${API_GATEWAY}/stats`);
-      if (response.data.success) {
-        setStats(response.data.dashboard);
-      }
+      // The analytics service returns { totalVendors, totalProducts, totalShops }
+      setStats(response.data);
     } catch (err) {
       console.error("Failed to load dashboard stats", err);
     }
@@ -47,21 +46,27 @@ function App() {
     setIsLoading(true);
 
     try {
-      // ✅ Now hitting the REAL Gemini AI endpoint through the Gateway!
-      const response = await axios.get(`${API_GATEWAY}/generate-ai/${type.id}`);
+      // ✅ Now hitting the REFACTORED AI endpoint that saves directly to PostgreSQL!
+      const response = await axios.post(`${API_GATEWAY}/generate-shop`, {
+        businessType: type.id,
+        vendorId: 1 // Default test vendor
+      });
       
-      const formattedProducts = response.data.data.products.map((product, index) => ({
+      // The PostgreSQL response returns the shop object with a 'config' JSONB
+      const generatedProducts = response.data.shop.config.products;
+
+      const formattedProducts = generatedProducts.map((product, index) => ({
         id: index + 1,
         name: product.name,
-        // AI now generates real prices for us securely!
         price: product.price 
       }));
 
       setProducts(formattedProducts);
       setIsLoading(false);
     } catch (err) {
+      console.error("AI Generation Error:", err);
       setIsLoading(false);
-      setError('Failed to generate AI suggestions. Check if your AI Service and Gateway are running.');
+      setError('Failed to generate AI suggestions. Ensure your AI Service and User Validation are running.');
     }
   };
 
@@ -78,10 +83,14 @@ function App() {
     setError('');
 
     try {
+      // For this demo, we'll associate with Vendor #1
+      const VENDOR_ID = 1;
+
       for (const product of products) {
         if (product.name.trim() === '') continue;
 
         const productData = {
+          vendorId: VENDOR_ID, // Required for PostgreSQL validation
           name: product.name,
           price: parseFloat(product.price) || 0,
           category: selectedType
@@ -90,14 +99,14 @@ function App() {
         await axios.post(`${API_GATEWAY}/products`, productData);
       }
 
-      setSuccessMsg('Successfully saved! Your new items are in the catalog.');
+      setSuccessMsg(`Successfully saved! Your new items are in the catalog for Vendor #${VENDOR_ID}.`);
       setIsSaving(false);
       
-      // ✅ Step 12: Magic Refresh! Update the top dashboard widgets dynamically!
+      // ✅ Refresh! Update the top dashboard widgets dynamically!
       fetchStats();
 
     } catch (err) {
-      setError('Failed to save to catalog. Check backend terminal.');
+      setError('Failed to save to catalog. Check backend logs for validation errors.');
       setIsSaving(false);
     }
   };
@@ -106,31 +115,31 @@ function App() {
     <div className="app-container">
       <header className="header">
         <h1 className="title">SME AI Platform</h1>
-        <p className="subtitle">Let AI build your catalog context, edit prices, and launch.</p>
+        <p className="subtitle">Real-time Microservices Dashboard powered by PostgreSQL.</p>
       </header>
 
       {/* DASHBOARD WIDGETS */}
       {stats && (
         <section className="dashboard-widget">
           <div className="stat-card">
-            <div className="stat-icon"><Box size={32} /></div>
+            <div className="stat-icon"><Users size={32} /></div>
             <div className="stat-content">
-              <h3>Live Catalog</h3>
-              <p>{stats.totalProducts} Items</p>
+              <h3>Total Vendors</h3>
+              <p>{stats.totalVendors}</p>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon text-accent"><DollarSign size={32} /></div>
+            <div className="stat-icon text-accent"><Box size={32} /></div>
             <div className="stat-content">
-              <h3>Total Value</h3>
-              <p>{stats.totalInventoryValue}</p>
+              <h3>Total Products</h3>
+              <p>{stats.totalProducts}</p>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon text-secondary"><Tag size={32} /></div>
+            <div className="stat-icon text-secondary"><Store size={32} /></div>
             <div className="stat-content">
-              <h3>Avg. Price</h3>
-              <p>{stats.averageProductPrice}</p>
+              <h3>AI Shops</h3>
+              <p>{stats.totalShops}</p>
             </div>
           </div>
         </section>

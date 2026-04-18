@@ -58,9 +58,9 @@ services:
     ports:
       - "5003:5003"
     environment:
-      - PRODUCT_SERVICE_URL=http://product:5001
+      - DB_HOST=postgres
     depends_on:
-      - product
+      - postgres
 
   frontend:
     build: ./frontend

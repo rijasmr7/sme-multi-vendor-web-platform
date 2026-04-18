@@ -140,6 +140,17 @@ app.get('/generate-ai/:type', async (req, res) => {
     }
 });
 
+// POST /generate-shop -> Forward to AI service (NEW REFACTORED WORKFLOW)
+app.post('/generate-shop', async (req, res) => {
+    try {
+        console.log(`>>> [Gateway] Forwarding POST /generate-shop`);
+        const response = await axios.post(`${SERVICES.ai}/generate-shop`, req.body);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'AI Service');
+    }
+});
+
 // GET /stats -> Forward to Analytics service
 app.get('/stats', async (req, res) => {
     try {
