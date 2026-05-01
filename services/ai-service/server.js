@@ -27,14 +27,26 @@ pool.on('connect', () => {
     console.log('Connected to PostgreSQL Database (ai_db)');
 });
 
+// --- API RESPONSE HELPERS ---
+const sendSuccess = (res, data, status = 200) => {
+    res.status(status).json({ success: true, data });
+};
+
+const sendError = (res, message, status = 500) => {
+    res.status(status).json({ success: false, message });
+};
+
+
 const createTableQuery = `
 CREATE TABLE IF NOT EXISTS shops (
     id SERIAL PRIMARY KEY,
     vendor_id INTEGER NOT NULL,
     shop_name TEXT NOT NULL,
     config JSONB,
+    is_published BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT FALSE;
 `;
 
 pool.query(createTableQuery)
@@ -51,18 +63,22 @@ app.post('/generate-shop', async (req, res) => {
     console.log(`[POST] /generate-shop - Request received`);
     const { businessType, vendorId, products, theme } = req.body;
 
+    // 1. Validation
     if (!businessType || !vendorId) {
-        return res.status(400).json({ error: 'businessType and vendorId are required' });
+        return sendError(res, 'businessType and vendorId are required', 400);
     }
 
-    // 1. Validating Vendor ID with User Service
+    // 2. Cross-Service Validation
     try {
         console.log(`[POST] Validating vendorId: ${vendorId}...`);
         await axios.get(`${USER_SERVICE_URL}/users/${vendorId}`);
     } catch (error) {
-        console.error(`[POST] Vendor validation failed:`, error.message);
-        return res.status(400).json({ error: 'Invalid vendorId: User does not exist' });
+        if (error.response && error.response.status === 404) {
+            return sendError(res, 'Invalid vendorId: User not found', 400);
+        }
+        return sendError(res, 'Validation error: User service unreachable', 503);
     }
+
 
     // 2. Generating Shop Config with Gemini AI
     try {
@@ -115,41 +131,34 @@ app.post('/generate-shop', async (req, res) => {
         const { rows } = await pool.query(query, [vendorId, shopName, JSON.stringify(config)]);
         
         console.log(`[POST] /generate-shop - Success: Shop saved!`);
-        res.status(201).json({
-            success: true,
-            message: "Shop generated and legally saved to database successfully",
+        sendSuccess(res, {
+            message: "Shop generated and saved successfully",
             shop: rows[0]
-        });
+        }, 201);
 
     } catch (error) {
         console.error("[POST] /generate-shop Error:", error);
-        res.status(500).json({ success: false, message: "Failed to generate and save shop", error: error.message });
+        sendError(res, "Failed to generate AI shop: " + (error.message || 'Unknown error'));
     }
 });
 
-// ------------------------------------------------------------------
-// GET /shops/:vendorId API
-// ------------------------------------------------------------------
 app.get('/shops/:vendorId', async (req, res) => {
     const { vendorId } = req.params;
-    console.log(`[GET] /shops/${vendorId} - Fetching shops...`);
-
     try {
-        // Find all shops matching the specific vendor, sorting by descending creation time
-        const query = `
-            SELECT * FROM shops 
-            WHERE vendor_id = $1 
-            ORDER BY created_at DESC;
-        `;
+        const query = `SELECT * FROM shops WHERE vendor_id = $1 ORDER BY created_at DESC;`;
         const { rows } = await pool.query(query, [vendorId]);
-        
-        console.log(`[GET] /shops/${vendorId} - Fetched ${rows.length} shops`);
-        res.status(200).json({ success: true, count: rows.length, shops: rows });
+        sendSuccess(res, rows);
     } catch (error) {
-        console.error(`[GET] /shops/${vendorId} Error:`, error);
-        res.status(500).json({ success: false, message: "Failed to fetch shops", error: error.message });
+        sendError(res, "Failed to fetch shops");
     }
 });
+
+// --- GLOBAL ERROR MIDDLEWARE ---
+app.use((err, req, res, next) => {
+    console.error('AI SERVICE CRASH:', err);
+    sendError(res, 'Interior AI engine failure');
+});
+
 
 // Start the server
 app.listen(PORT, () => {

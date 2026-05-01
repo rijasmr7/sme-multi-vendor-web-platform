@@ -16,7 +16,8 @@ const SERVICES = {
     user: process.env.USER_SERVICE_URL || 'http://localhost:5004',
     product: process.env.PRODUCT_SERVICE_URL || 'http://localhost:5001',
     ai: process.env.AI_SERVICE_URL || 'http://localhost:5002',
-    analytics: process.env.ANALYTICS_SERVICE_URL || 'http://localhost:5003'
+    analytics: process.env.ANALYTICS_SERVICE_URL || 'http://localhost:5003',
+    order: process.env.ORDER_SERVICE_URL || 'http://localhost:5005'
 };
 
 // -------------------------------------------------------------
@@ -26,14 +27,15 @@ const SERVICES = {
 // the exact same error logic over and over in every route.
 const handleError = (res, error, serviceName) => {
     if (error.response) {
-        // The service successfully received the request but returned an error (like 404 Not Found or 400 Bad Request)
+        // Use the standardized error JSON coming from the microservice
         res.status(error.response.status).json(error.response.data);
     } else {
-        // The service didn't respond at all (it might be offline, crashed, etc.)
+        // Service is offline or crashed
         console.error(`[Gateway Error] ${serviceName} is down:`, error.message);
-        res.status(500).json({ error: `${serviceName} is currently unavailable.` });
+        res.status(503).json({ success: false, message: `${serviceName} is currently unavailable.` });
     }
 };
+
 
 // =============================================================
 // USER SERVICE ROUTES
@@ -55,6 +57,28 @@ app.post('/login', async (req, res) => {
     try {
         console.log(`>>> [Gateway] Forwarding POST /login to User Service`);
         const response = await axios.post(`${SERVICES.user}/login`, req.body);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'User Service');
+    }
+});
+
+// 3. POST /customer/register -> Forward to user-service
+app.post('/customer/register', async (req, res) => {
+    try {
+        console.log(`>>> [Gateway] Forwarding POST /customer/register to User Service`);
+        const response = await axios.post(`${SERVICES.user}/customer/register`, req.body);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'User Service');
+    }
+});
+
+// 4. POST /customer/login -> Forward to user-service
+app.post('/customer/login', async (req, res) => {
+    try {
+        console.log(`>>> [Gateway] Forwarding POST /customer/login to User Service`);
+        const response = await axios.post(`${SERVICES.user}/customer/login`, req.body);
         res.status(response.status).json(response.data);
     } catch (error) {
         handleError(res, error, 'User Service');
@@ -148,6 +172,103 @@ app.post('/generate-shop', async (req, res) => {
         res.status(response.status).json(response.data);
     } catch (error) {
         handleError(res, error, 'AI Service');
+    }
+});
+
+// POST /save-shop -> Forward to AI service
+app.post('/save-shop', async (req, res) => {
+    try {
+        console.log(`>>> [Gateway] Forwarding POST /save-shop`);
+        const response = await axios.post(`${SERVICES.ai}/save-shop`, req.body);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'AI Service');
+    }
+});
+
+// GET /shops/:vendorId -> Forward to AI service
+app.get('/shops/:vendorId', async (req, res) => {
+    try {
+        const vendorId = req.params.vendorId;
+        console.log(`>>> [Gateway] Forwarding GET /shops/${vendorId}`);
+        const response = await axios.get(`${SERVICES.ai}/shops/${vendorId}`);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'AI Service');
+    }
+});
+
+// GET /shops/published -> Forward to AI service
+app.get('/shops/published', async (req, res) => {
+    try {
+        console.log(`>>> [Gateway] Forwarding GET /shops/published`);
+        const response = await axios.get(`${SERVICES.ai}/shops/published`);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'AI Service');
+    }
+});
+
+// PUT /shops/publish/:shopId -> Forward to AI service
+app.put('/shops/publish/:shopId', async (req, res) => {
+    try {
+        const shopId = req.params.shopId;
+        console.log(`>>> [Gateway] Forwarding PUT /shops/publish/${shopId}`);
+        const response = await axios.put(`${SERVICES.ai}/shops/publish/${shopId}`);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'AI Service');
+    }
+});
+
+// PUBLIC ENDPOINTS (No Auth)
+// GET /public/shops -> Forward to AI service
+app.get('/public/shops', async (req, res) => {
+    try {
+        console.log(`>>> [Gateway] Forwarding GET /public/shops`);
+        const response = await axios.get(`${SERVICES.ai}/public/shops`);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'AI Service');
+    }
+});
+
+// GET /public/shops/:id -> Forward to AI service
+app.get('/public/shops/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+        console.log(`>>> [Gateway] Forwarding GET /public/shops/${id}`);
+        const response = await axios.get(`${SERVICES.ai}/public/shops/${id}`);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'AI Service');
+    }
+});
+
+// =============================================================
+// ORDER SERVICE ROUTES
+// =============================================================
+
+// POST /orders -> Forward to order-service
+app.post('/orders', async (req, res) => {
+    try {
+        console.log(`>>> [Gateway] Forwarding POST /orders`);
+        const response = await axios.post(`${SERVICES.order}/orders`, req.body);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Order Service');
+    }
+});
+
+// GET /orders/:customerId -> Forward to order-service
+app.get('/orders/:customerId', async (req, res) => {
+    try {
+        const customerId = req.params.customerId;
+        console.log(`>>> [Gateway] Forwarding GET /orders/${customerId}`);
+        const response = await axios.get(`${SERVICES.order}/orders/${customerId}`);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Order Service');
     }
 });
 

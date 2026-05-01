@@ -20,6 +20,22 @@ pool.on('connect', () => {
     console.log('Connected to PostgreSQL Database (user_db)');
 });
 
+// --- API RESPONSE HELPERS ---
+const sendSuccess = (res, data, status = 200) => {
+    res.status(status).json({ success: true, data });
+};
+
+const sendError = (res, message, status = 500) => {
+    res.status(status).json({ success: false, message });
+};
+
+// --- VALIDATION HELPERS ---
+const isValidEmail = (email) => {
+    const re = /\S+@\S+\.\S+/;
+    return re.test(email);
+};
+
+
 // 2. Initialize the Users Table Automatically on Start
 const createTableQuery = `
 CREATE TABLE IF NOT EXISTS users (
@@ -36,106 +52,103 @@ pool.query(createTableQuery)
     .catch(err => console.error('Error creating table:', err));
 
 
-// 3. POST /register API
 app.post('/register', async (req, res) => {
     console.log('--- Register Request Received ---');
-    console.log('Request Body:', req.body);
-
     const { name, email, phone, password } = req.body;
 
-    // Simple validation
-    if (!name || (!email && !phone) || !password) {
-        return res.status(400).json({ error: 'Name, password, and at least one of email or phone are required' });
+    // 1. Required Field Validation
+    if (!name || !password || (!email && !phone)) {
+        return sendError(res, 'Name, password, and at least (email or phone) are required', 400);
+    }
+
+    // 2. Type/Format Validation
+    if (email && !isValidEmail(email)) {
+        return sendError(res, 'Invalid email format', 400);
+    }
+
+    if (name.length < 2) {
+        return sendError(res, 'Name must be at least 2 characters', 400);
     }
 
     try {
-        // Parameterized query ($1, $2) to prevent SQL Injection
-        const checkUserQuery = `
-            SELECT * FROM users 
-            WHERE email = $1 OR phone = $2;
-        `;
-        
-        // Wait for the query to finish using "await"
-        const { rows: existingUsers } = await pool.query(checkUserQuery, [email, phone]);
+        // Check for existing user
+        const checkUserQuery = `SELECT * FROM users WHERE (email IS NOT NULL AND email = $1) OR (phone IS NOT NULL AND phone = $2);`;
+        const { rows: existingUsers } = await pool.query(checkUserQuery, [email || null, phone || null]);
 
         if (existingUsers.length > 0) {
-            return res.status(400).json({ error: 'User already exists with this email or phone' });
+            return sendError(res, 'A user with this email or phone already exists', 400);
         }
 
-        // Insert new user query
         const insertUserQuery = `
             INSERT INTO users (name, email, phone, password)
             VALUES ($1, $2, $3, $4)
-            RETURNING *;
+            RETURNING id, name, email, phone;
         `;
-        // RETURNING * gives us the newly created row including its generated ID
-
         const { rows: newUsers } = await pool.query(insertUserQuery, [name, email, phone, password]);
-        const newUser = newUsers[0];
-
-        console.log('Success: New User created:', newUser);
-        res.status(201).json({ message: 'User registered successfully', user: newUser });
+        
+        console.log('Success: New User created:', newUsers[0]);
+        sendSuccess(res, newUsers[0], 201);
 
     } catch (error) {
-        console.error('Database Error during registration:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Registration Error:', error);
+        sendError(res, 'Database error during registration');
     }
 });
 
-// 4. POST /login API
+
 app.post('/login', async (req, res) => {
-    console.log('--- Login Request Received ---');
-    console.log('Request Body:', req.body);
-
     const { email, phone, password } = req.body;
-    const loginIdentifier = email || phone;
+    const identifier = email || phone;
 
-    if (!loginIdentifier || !password) {
-        return res.status(400).json({ error: 'Email or phone, alongside the password are required' });
+    if (!identifier || !password) {
+        return sendError(res, 'Missing credentials', 400);
     }
 
     try {
-        // Find user by either email or phone
-        const findUserQuery = `
-            SELECT * FROM users 
-            WHERE email = $1 OR phone = $1;
-        `;
+        const query = `SELECT * FROM users WHERE email = $1 OR phone = $1;`;
+        const { rows } = await pool.query(query, [identifier]);
         
-        const { rows } = await pool.query(findUserQuery, [loginIdentifier]);
-        
-        if (rows.length === 0) {
-            return res.status(401).json({ error: 'Invalid email/phone or password' });
+        if (rows.length === 0 || rows[0].password !== password) {
+            return sendError(res, 'Invalid credentials', 401);
         }
 
-        const user = rows[0];
+        const user = { ...rows[0] };
+        delete user.password; // Don't send password back
 
-        // Check password match (Plain text for beginner-friendly illustration)
-        // Note: In real apps, ALWAYS use bcrypt!
-        if (user.password !== password) {
-            return res.status(401).json({ error: 'Invalid email/phone or password' });
-        }
-
-        console.log('Success: User logged in:', user);
-        res.status(200).json({ message: 'Login successful', user });
-
+        sendSuccess(res, user);
     } catch (error) {
-        console.error('Database Error during login:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        sendError(res, 'Database error during login');
     }
 });
 
-// 5. GET /users/:id API
 app.get('/users/:id', async (req, res) => {
     const { id } = req.params;
+    
+    // Validate that ID is a number
+    if (isNaN(id)) {
+        return sendError(res, 'Invalid user ID format', 400);
+    }
+
     try {
         const query = `SELECT id, name, email, phone FROM users WHERE id = $1;`;
         const { rows } = await pool.query(query, [id]);
-        if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
-        res.status(200).json(rows[0]);
+        
+        if (rows.length === 0) {
+            return sendError(res, 'User not found', 404);
+        }
+        
+        sendSuccess(res, rows[0]);
     } catch (error) {
-        res.status(500).json({ error: 'Internal Server Error' });
+        sendError(res, 'Error fetching user data');
     }
 });
+
+// --- GLOBAL ERROR MIDDLEWARE ---
+app.use((err, req, res, next) => {
+    console.error('Unexpected Global Error:', err);
+    sendError(res, 'An unexpected server error occurred');
+});
+
 
 // Start the server
 app.listen(PORT, () => {

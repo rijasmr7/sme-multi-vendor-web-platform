@@ -24,6 +24,16 @@ pool.on('connect', () => {
     console.log('Connected to PostgreSQL Database (product_db)');
 });
 
+// --- API RESPONSE HELPERS ---
+const sendSuccess = (res, data, status = 200) => {
+    res.status(status).json({ success: true, data });
+};
+
+const sendError = (res, message, status = 500) => {
+    res.status(status).json({ success: false, message });
+};
+
+
 const createTableQuery = `
 CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
@@ -40,29 +50,31 @@ pool.query(createTableQuery)
     .catch(err => console.error('Error creating products table:', err));
 
 
-// 1. POST /products API
 app.post('/products', async (req, res) => {
     console.log(`[POST] /products - Request Body:`, req.body);
     const { vendorId, name, price, category, extraData } = req.body;
 
-    if (!vendorId || !name || !price || !category) {
-        return res.status(400).json({ error: 'vendorId, name, price, and category are required' });
+    // 1. Basic Validation
+    if (!vendorId || !name || price === undefined || !category) {
+        return sendError(res, 'vendorId, name, price, and category are required', 400);
     }
 
-    // MICROSERVICES API VALIDATION STEP
+    if (isNaN(price) || Number(price) < 0) {
+        return sendError(res, 'Price must be a valid positive number', 400);
+    }
+
+    // 2. Cross-Service Validation
     try {
-        console.log(`[POST] Validating vendorId: ${vendorId} with user-service...`);
+        console.log(`[POST] Validating vendorId: ${vendorId}...`);
         await axios.get(`${USER_SERVICE_URL}/users/${vendorId}`);
-        console.log(`[POST] vendorId ${vendorId} is valid! Proceeding to create product.`);
     } catch (error) {
-        console.error(`[POST] Error validating user:`, error.message);
-        // If the user-service returns 404, we return an error to the frontend!
         if (error.response && error.response.status === 404) {
-            return res.status(400).json({ error: 'Invalid vendorId: User does not exist in the system' });
+            return sendError(res, 'Invalid vendorId: User not found', 400);
         }
-        return res.status(500).json({ error: 'Failed to communicate with user-service' });
+        return sendError(res, 'Validation error: Could not reach user-service', 503);
     }
 
+    // 3. Database Operation
     try {
         const query = `
             INSERT INTO products (vendor_id, name, price, category, extra_data)
@@ -70,50 +82,44 @@ app.post('/products', async (req, res) => {
             RETURNING *;
         `;
         const { rows } = await pool.query(query, [vendorId, name, price, category, extraData ? JSON.stringify(extraData) : null]);
+
         
-        console.log(`[POST] /products - Success:`, rows[0]);
-        res.status(201).json(rows[0]);
+        console.log(`[POST] /products - Success`);
+        sendSuccess(res, rows[0], 201);
     } catch (error) {
-        console.error(`[POST] /products - Error:`, error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error(`[POST] /products - Database Error:`, error);
+        sendError(res, 'Failed to create product in database');
     }
 });
 
-// 2. GET /products API (All products)
+
 app.get('/products', async (req, res) => {
-    console.log(`[GET] /products - Fetching all products`);
     try {
-        const query = `SELECT * FROM products ORDER BY id DESC;`;
-        const { rows } = await pool.query(query);
-        console.log(`[GET] /products - Fetched ${rows.length} products`);
-        res.status(200).json(rows);
+        const { rows } = await pool.query(`SELECT * FROM products ORDER BY id DESC;`);
+        sendSuccess(res, rows);
     } catch (error) {
-        console.error(`[GET] /products - Error:`, error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        sendError(res, 'Failed to fetch catalog');
     }
 });
 
-// 3. GET /products/vendor/:vendorId API
 app.get('/products/vendor/:vendorId', async (req, res) => {
-    console.log(`[GET] /products/vendor/${req.params.vendorId} - Fetching vendor products`);
     const { vendorId } = req.params;
-
     try {
-        const query = `SELECT * FROM products WHERE vendor_id = $1 ORDER BY id DESC;`;
-        const { rows } = await pool.query(query, [vendorId]);
-        console.log(`[GET] /products/vendor/${vendorId} - Fetched ${rows.length} products`);
-        res.status(200).json(rows);
+        const { rows } = await pool.query(`SELECT * FROM products WHERE vendor_id = $1 ORDER BY id DESC;`, [vendorId]);
+        sendSuccess(res, rows);
     } catch (error) {
-        console.error(`[GET] /products/vendor/${vendorId} - Error:`, error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        sendError(res, 'Failed to fetch products for vendor');
     }
 });
 
-// 4. PUT /products/:id API
 app.put('/products/:id', async (req, res) => {
-    console.log(`[PUT] /products/${req.params.id} - Request Body:`, req.body);
     const { id } = req.params;
     const { name, price, category, extraData } = req.body;
+
+    // Validation for partial updates
+    if (price !== undefined && (isNaN(price) || Number(price) < 0)) {
+        return sendError(res, 'Price must be a valid positive number', 400);
+    }
 
     try {
         const query = `
@@ -125,43 +131,32 @@ app.put('/products/:id', async (req, res) => {
             WHERE id = $5
             RETURNING *;
         `;
-        const values = [name, price, category, extraData ? JSON.stringify(extraData) : null, id];
-        const { rows } = await pool.query(query, values);
+        const { rows } = await pool.query(query, [name, price, category, extraData ? JSON.stringify(extraData) : null, id]);
 
-        if (rows.length === 0) {
-            console.log(`[PUT] /products/${id} - Product Not Found`);
-            return res.status(404).json({ error: 'Product not found' });
-        }
-
-        console.log(`[PUT] /products/${id} - Success:`, rows[0]);
-        res.status(200).json(rows[0]);
+        if (rows.length === 0) return sendError(res, 'Product not found', 404);
+        sendSuccess(res, rows[0]);
     } catch (error) {
-        console.error(`[PUT] /products/${id} - Error:`, error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        sendError(res, 'Failed to update product');
     }
 });
 
-// 5. DELETE /products/:id API
 app.delete('/products/:id', async (req, res) => {
-    console.log(`[DELETE] /products/${req.params.id} - Deleting product`);
     const { id } = req.params;
-
     try {
-        const query = `DELETE FROM products WHERE id = $1 RETURNING *;`;
-        const { rows } = await pool.query(query, [id]);
-
-        if (rows.length === 0) {
-            console.log(`[DELETE] /products/${id} - Product Not Found`);
-            return res.status(404).json({ error: 'Product not found' });
-        }
-
-        console.log(`[DELETE] /products/${id} - Successfully deleted`);
-        res.status(200).json({ message: 'Product deleted successfully', deletedProduct: rows[0] });
+        const { rows } = await pool.query(`DELETE FROM products WHERE id = $1 RETURNING *;`, [id]);
+        if (rows.length === 0) return sendError(res, 'Product not found', 404);
+        sendSuccess(res, { message: 'Deleted successfully', product: rows[0] });
     } catch (error) {
-        console.error(`[DELETE] /products/${id} - Error:`, error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        sendError(res, 'Failed to delete product');
     }
 });
+
+// --- GLOBAL ERROR MIDDLEWARE ---
+app.use((err, req, res, next) => {
+    console.error('SERVER ERROR:', err);
+    sendError(res, 'Internal backend failure');
+});
+
 
 app.listen(PORT, () => {
     console.log(`Product Service running on http://localhost:${PORT}`);

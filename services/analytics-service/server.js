@@ -8,6 +8,16 @@ const PORT = 5003;
 app.use(cors());
 app.use(express.json());
 
+// --- API RESPONSE HELPERS ---
+const sendSuccess = (res, data, status = 200) => {
+    res.status(status).json({ success: true, data });
+};
+
+const sendError = (res, message, status = 500) => {
+    res.status(status).json({ success: false, message });
+};
+
+
 // -------------------------------------------------------------
 // ANALYTICS MULTI-DATABASE CONNECTIONS
 // In data engineering, it's common for an analytics engine
@@ -53,38 +63,37 @@ app.get('/stats', async (req, res) => {
     console.log(`\n[GET] /stats - Generating Platform Analytics`);
 
     try {
-        // Use SQL COUNT(*) aggregation function to pull exact row sizes
         const userQuery = 'SELECT COUNT(*) FROM users;';
         const productQuery = 'SELECT COUNT(*) FROM products;';
         const shopQuery = 'SELECT COUNT(*) FROM shops;';
 
-        // Promise.all runs all 3 SQL queries SIMULTANEOUSLY for extreme speed!
         const [userResult, productResult, shopResult] = await Promise.all([
             userPool.query(userQuery),
             productPool.query(productQuery),
             aiPool.query(shopQuery)
         ]);
 
-        // PostgreSQL COUNT() returns data as a String (to prevent integer overflow natively),
-        // so we must safely parse it back into a JavaScript Number!
-        const totalVendors = Number(userResult.rows[0].count);
-        const totalProducts = Number(productResult.rows[0].count);
-        const totalShops = Number(shopResult.rows[0].count);
+        const stats = {
+            totalVendors: Number(userResult.rows[0].count),
+            totalProducts: Number(productResult.rows[0].count),
+            totalShops: Number(shopResult.rows[0].count)
+        };
 
-        console.log(`Analytics Success: ${totalVendors} Vendors, ${totalProducts} Products, ${totalShops} Shops`);
-        
-        // Return exactly the requested JSON layout
-        res.status(200).json({
-            totalVendors,
-            totalProducts,
-            totalShops
-        });
+        console.log(`Analytics Success:`, stats);
+        sendSuccess(res, stats);
 
     } catch (error) {
         console.error(`[GET] /stats - Analytics Engine Failure:`, error);
-        res.status(500).json({ error: 'Internal Analytics Error' });
+        sendError(res, 'Internal Analytics Error: Database connection failure');
     }
 });
+
+// --- GLOBAL ERROR MIDDLEWARE ---
+app.use((err, req, res, next) => {
+    console.error('ANALYTICS FAILURE:', err);
+    sendError(res, 'Unexpected analytics engine failure');
+});
+
 
 // -------------------------------------------------------------
 app.listen(PORT, () => {

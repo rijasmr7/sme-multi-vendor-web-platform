@@ -160,10 +160,10 @@ body {
   gap: 1.5rem;
 }
 
-.product-card {
-  background: var(--card-bg);
+.generator-product-card {
+  background: #1e293b !important; /* Force solid dark background */
   backdrop-filter: blur(10px);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
   border-radius: 16px;
   padding: 1.5rem;
   display: flex;
@@ -174,7 +174,7 @@ body {
   overflow: hidden;
 }
 
-.product-card::before {
+.generator-product-card::before {
   content: '';
   position: absolute;
   top: 0;
@@ -187,13 +187,13 @@ body {
   transform-origin: bottom;
 }
 
-.product-card:hover {
+.generator-product-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.5);
   border-color: rgba(255, 255, 255, 0.2);
 }
 
-.product-card:hover::before {
+.generator-product-card:hover::before {
   transform: scaleY(1);
 }
 
@@ -219,15 +219,15 @@ body {
 
 .input-label {
   font-size: 0.85rem;
-  color: var(--text-muted);
+  color: #94a3b8 !important; /* High contrast muted blue-gray */
   font-weight: 600;
 }
 
 .input-field {
   width: 100%;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--border);
-  color: #fff;
+  background: #0f172a !important; /* Solid very dark background */
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;      /* Forced white text */
   padding: 0.6rem 1rem;
   border-radius: 8px;
   font-family: inherit;
@@ -238,11 +238,11 @@ body {
 .input-field:focus {
   outline: none;
   border-color: var(--accent);
-  background: rgba(0, 0, 0, 0.4);
+  background: #000000 !important;
 }
 
 .input-field::placeholder {
-  color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .save-btn-container {
