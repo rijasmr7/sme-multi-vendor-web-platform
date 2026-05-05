@@ -17,805 +17,352 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  Loader2
+  Loader2,
+  Rocket,
+  Edit3,
+  Eye,
+  ArrowLeft
 } from 'lucide-react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 
 const API_GATEWAY = 'http://localhost:5000';
 
-function Dashboard({ primaryColor = '#6366f1' }) {
-  const [stats, setStats] = useState(null);
-  const [recentProducts, setRecentProducts] = useState([]);
+function Dashboard() {
   const [shops, setShops] = useState([]);
+  const [selectedShop, setSelectedShop] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
-  const [selectedShop, setSelectedShop] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [recentProducts, setRecentProducts] = useState([]);
   const [vendorOrders, setVendorOrders] = useState([]);
-  const [ordersLoading, setOrdersLoading] = useState(false);
-  const [orderFilter, setOrderFilter] = useState('all');
-  const [updatingOrderId, setUpdatingOrderId] = useState(null);
-  const productsPerPage = 5;
   const navigate = useNavigate();
   const location = useLocation();
   const { shopId } = useParams();
 
-  const getShopCategory = (shop) => {
-    if (!shop || !recentProducts || recentProducts.length === 0) return '';
-    if (shop.config?.products?.length > 0) {
-      const sampleProduct = recentProducts.find(rp => 
-        shop.config.products.some(sp => sp.name === rp.name)
-      );
-      if (sampleProduct) {
-        return sampleProduct.category;
-      }
-    }
-    return '';
-  };
-
-  const shopLiveProducts = selectedShop ? (getShopCategory(selectedShop) ? recentProducts.filter(p => p.category === getShopCategory(selectedShop)) : []) : [];
-
-  const parseJwtLocal = (token) => {
-    try { return JSON.parse(atob(token.split('.')[1])); } 
-    catch (e) { return null; }
-  };
-
+  // Data Fetching
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const init = async () => {
+      const token = localStorage.getItem('vendorToken');
+      if (!token || token === 'null') {
+        navigate('/auth');
+        return;
+      }
+      const vendorId = JSON.parse(atob(token.split('.')[1])).id;
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+
       try {
-        const token = localStorage.getItem('vendorToken');
-        if (!token || token === 'null') return;
-        const vendorId = parseJwtLocal(token)?.id || 1;
-        const config = { headers: { Authorization: `Bearer ${token}` } };
+        const [shopsRes, productsRes, ordersRes] = await Promise.all([
+          axios.get(`${API_GATEWAY}/shops/${vendorId}`, config),
+          axios.get(`${API_GATEWAY}/products/vendor/${vendorId}`, config),
+          axios.get(`${API_GATEWAY}/orders/vendor/${vendorId}`, config)
+        ]);
 
-        // 1. Fetch Global Stats
-        const statsRes = await axios.get(`${API_GATEWAY}/stats`, config);
-        if (statsRes.data.success) {
-          setStats(statsRes.data.data);
-        }
-
-        // 2. Fetch Recent Products for this vendor
-        const productsRes = await axios.get(`${API_GATEWAY}/products/vendor/${vendorId}`, config);
-        if (productsRes.data.success) {
-          setRecentProducts(productsRes.data.data || []);
-        }
-
-        // 3. Fetch Shops for this vendor
-        const shopsRes = await axios.get(`${API_GATEWAY}/shops/${vendorId}`, config);
         if (shopsRes.data.success) {
           const fetchedShops = shopsRes.data.data || [];
           setShops(fetchedShops);
-
-          // Restore previously active shop if navigated back from another page or direct URL
+          
           if (shopId) {
-            const routeShop = fetchedShops.find(s => s.id.toString() === shopId);
-            if (routeShop) {
-              setSelectedShop(routeShop);
-              setActiveTab('shop-dashboard');
-            }
-          } else if (location.state?.returnToShopId) {
-            const returnShop = fetchedShops.find(s => s.id === location.state.returnToShopId);
-            if (returnShop) {
-              setSelectedShop(returnShop);
-              setActiveTab('shop-dashboard');
-              navigate(`/${returnShop.id}/dashboard`, { replace: true });
-            }
-          } else if (location.state?.activeTab) {
-            setActiveTab(location.state.activeTab);
+            const found = fetchedShops.find(s => s.id.toString() === shopId);
+            if (found) setSelectedShop(found);
           }
         }
+        if (productsRes.data.success) setRecentProducts(productsRes.data.data || []);
+        if (ordersRes.data.success) setVendorOrders(ordersRes.data.data || []);
       } catch (err) {
-        console.error("Dashboard Data Fetch Error:", err);
+        console.error("Dashboard Init Error:", err);
       } finally {
         setIsLoading(false);
       }
     };
-
-    fetchDashboardData();
-  }, []);
-
-  // Fetch vendor orders when Orders tab is active
-  useEffect(() => {
-    if (activeTab === 'orders') {
-      fetchVendorOrders();
-    }
-  }, [activeTab, orderFilter]);
-
-  const fetchVendorOrders = async () => {
-    const token = localStorage.getItem('vendorToken');
-    if (!token || token === 'null') return;
-    const vendorId = parseJwtLocal(token)?.id;
-    if (!vendorId) return;
-
-    setOrdersLoading(true);
-    try {
-      let url = `${API_GATEWAY}/orders/vendor/${vendorId}`;
-      if (orderFilter !== 'all') {
-        url += `?status=${orderFilter}`;
-      }
-      const res = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.data.success) {
-        setVendorOrders(res.data.data || []);
-      }
-    } catch (err) {
-      console.error('Vendor Orders Fetch Error:', err);
-    } finally {
-      setOrdersLoading(false);
-    }
-  };
-
-  const handleUpdateOrderStatus = async (orderId, newStatus) => {
-    const token = localStorage.getItem('vendorToken');
-    if (!token) return;
-
-    setUpdatingOrderId(orderId);
-    try {
-      await axios.put(`${API_GATEWAY}/orders/${orderId}/status`, { status: newStatus }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      // Refresh orders after update
-      fetchVendorOrders();
-    } catch (err) {
-      console.error('Order Status Update Error:', err);
-      alert(err.response?.data?.message || 'Failed to update order status');
-    } finally {
-      setUpdatingOrderId(null);
-    }
-  };
-
-  const handleNavClick = (tabId) => {
-    setActiveTab(tabId);
-    if (tabId !== 'shop-dashboard') {
-      setSelectedShop(null);
-      if (location.pathname !== '/dashboard') {
-        navigate('/dashboard', { state: { activeTab: tabId } });
-      }
-    }
-  };
+    init();
+  }, [shopId]);
 
   const handleShopClick = (shop) => {
     setSelectedShop(shop);
-    setActiveTab('shop-dashboard');
     navigate(`/${shop.id}/dashboard`);
   };
 
+  const handleBackToSelection = () => {
+    setSelectedShop(null);
+    navigate('/dashboard');
+  };
+
+  if (isLoading) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+        <Loader2 size={40} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} />
+      </div>
+    );
+  }
+
+  // VIEW 1: SELECTION PAGE
+  if (!selectedShop) {
+    return <SelectionPage shops={shops} onSelect={handleShopClick} />;
+  }
+
+  // VIEW 2 & 3: SHOP DASHBOARDS
+  return selectedShop.is_published ? (
+    <LiveShopDashboard 
+      shop={selectedShop} 
+      products={recentProducts} 
+      orders={vendorOrders} 
+      onBack={handleBackToSelection}
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+    />
+  ) : (
+    <DraftShopDashboard 
+      shop={selectedShop} 
+      onBack={handleBackToSelection}
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+    />
+  );
+}
+
+// ==========================================
+// VIEW 1: SELECTION PAGE (Full Screen)
+// ==========================================
+function SelectionPage({ shops, onSelect }) {
+  const published = shops.filter(s => s.is_published);
+  const drafts = shops.filter(s => !s.is_published);
+
   return (
-    <div className="dashboard-layout" style={{ display: 'flex', height: '100vh', background: '#f8fafc' }}>
-      
-      {/* SIDEBAR */}
-      <aside style={{ 
-        width: '260px', 
-        background: 'white', 
-        borderRight: '1px solid #e2e8f0',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '1.5rem 0'
-      }}>
-        <div style={{ padding: '0 1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ background: primaryColor, color: 'white', padding: '8px', borderRadius: '8px' }}>
-            <Package size={20} />
-          </div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#1e293b', margin: 0 }}>Vendor Hub</h2>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '4rem 2rem' }}>
+      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+        <div style={{ marginBottom: '4rem', textAlign: 'center' }}>
+          <h1 style={{ fontSize: '3rem', fontWeight: '900', color: '#1e293b', marginBottom: '1rem' }}>Vendor Hub</h1>
+          <p style={{ color: '#64748b', fontSize: '1.25rem' }}>Welcome back! Which dashboard would you like to access today?</p>
         </div>
 
-        <nav style={{ flex: 1, padding: '0 0.75rem' }}>
-          <NavItem icon={<LayoutDashboard size={18} />} label="Overview" active={activeTab === 'overview'} onClick={() => handleNavClick('overview')} primaryColor={primaryColor} />
-          <NavItem icon={<Store size={18} />} label="My Business" active={activeTab === 'my-business' || activeTab === 'shop-dashboard'} onClick={() => handleNavClick('my-business')} primaryColor={primaryColor} />
-          <NavItem icon={<Package size={18} />} label="My Products" active={activeTab === 'products'} onClick={() => handleNavClick('products')} primaryColor={primaryColor} />
-          <NavItem icon={<ClipboardList size={18} />} label="Orders" active={activeTab === 'orders'} onClick={() => handleNavClick('orders')} primaryColor={primaryColor} />
-          <NavItem icon={<Layers size={18} />} label="Categories" active={activeTab === 'categories'} onClick={() => handleNavClick('categories')} primaryColor={primaryColor} />
-          <NavItem icon={<TrendingUp size={18} />} label="Analytics" active={activeTab === 'analytics'} onClick={() => handleNavClick('analytics')} primaryColor={primaryColor} />
-          <div style={{ margin: '1.5rem 0.75rem', height: '1px', background: '#e2e8f0' }}></div>
-          <NavItem icon={<Settings size={18} />} label="Settings" active={activeTab === 'settings'} onClick={() => handleNavClick('settings')} primaryColor={primaryColor} />
-        </nav>
-
-        <div style={{ padding: '0 1.5rem' }}>
-          <div style={{ 
-            background: `${primaryColor}11`, 
-            padding: '1rem', 
-            borderRadius: '12px',
-            border: `1px dashed ${primaryColor}44`
-          }}>
-            <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.5rem' }}>Need help?</p>
-            <button style={{ 
-              width: '100%', 
-              background: primaryColor, 
-              color: 'white', 
-              border: 'none', 
-              padding: '0.5rem', 
-              borderRadius: '6px',
-              fontSize: '0.8rem',
-              fontWeight: '600',
-              cursor: 'pointer'
-            }}>
-              Contact Support
-            </button>
-          </div>
-        </div>
-      </aside>
-
-      {/* MAIN CONTENT */}
-      <main style={{ flex: 1, overflowY: 'auto', padding: '2rem' }}>
-        {/* HEADER */}
-        <header style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          marginBottom: '2rem' 
-        }}>
-          <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#1e293b', margin: 0 }}>
-              {activeTab === 'overview' ? 'Merchant Dashboard' : activeTab === 'my-business' ? 'My Business Shops' : activeTab === 'orders' ? 'Order Management' : selectedShop ? selectedShop.shop_name : 'Dashboard'}
-            </h1>
-            <p style={{ color: '#64748b', fontSize: '0.9rem' }}>
-              {activeTab === 'overview' ? "Welcome back! Here's what's happening today." : activeTab === 'my-business' ? "Select a shop to view its specific dashboard." : activeTab === 'orders' ? 'View and manage incoming customer orders.' : "Real-time insights for your generated shop."}
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-            <div style={{ position: 'relative' }}>
-              <Search style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} size={16} />
-              <input 
-                type="text" 
-                placeholder="Search products..." 
-                style={{ 
-                  padding: '0.5rem 1rem 0.5rem 2.2rem', 
-                  borderRadius: '8px', 
-                  border: '1px solid #e2e8f0',
-                  fontSize: '0.9rem',
-                  width: '240px'
-                }} 
-              />
-            </div>
-            <div style={{ color: '#64748b', position: 'relative' }}>
-              <Bell size={20} />
-              <div style={{ position: 'absolute', top: '-2px', right: '-2px', background: '#ef4444', height: '8px', width: '8px', borderRadius: '50%', border: '2px solid white' }}></div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '5px', borderRadius: '30px', border: '1px solid #e2e8f0', background: 'white' }}>
-              <div style={{ background: '#f1f5f9', color: '#64748b', padding: '5px', borderRadius: '50%' }}>
-                <User size={18} />
-              </div>
-              <span style={{ fontSize: '0.85rem', fontWeight: '600', marginRight: '5px' }}>Logged In Vendor</span>
-            </div>
-          </div>
-        </header>
-
-        {activeTab === 'overview' && (
-          <>
-            {/* STATS AREA */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '2rem' }}>
-              <StatCard 
-                title="Total Products" 
-                value={recentProducts.length} 
-                change="Active Inventory" 
-                icon={<Package size={20} />} 
-                color={primaryColor} 
-              />
-              <StatCard 
-                title="Total Shops" 
-                value={shops.length} 
-                change="Generated Brands" 
-                icon={<Store size={20} />} 
-                color="#22c55e" 
-              />
-              <StatCard 
-                title="Categories" 
-                value={new Set(recentProducts.map(p => p.category)).size} 
-                change="Unique Niches" 
-                icon={<Layers size={20} />} 
-                color="#f59e0b" 
-              />
-
-            </div>
-
-            {/* RECENT PRODUCTS TABLE */}
-            <section style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-              <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ fontWeight: '700', color: '#1e293b' }}>Recent Product Activity</h3>
-                <button style={{ color: primaryColor, fontSize: '0.85rem', fontWeight: '600', border: 'none', background: 'none' }}>View All</button>
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc' }}>
-                      <th style={tableHeaderStyle}>Product Name</th>
-                      <th style={tableHeaderStyle}>Category</th>
-                      <th style={tableHeaderStyle}>Price</th>
-                      <th style={tableHeaderStyle}>Status</th>
-                      <th style={tableHeaderStyle}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentProducts.length > 0 ? recentProducts.slice((currentPage - 1) * productsPerPage, currentPage * productsPerPage).map((p, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={tableCellStyle}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{ width: '32px', height: '32px', background: '#f1f5f9', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: primaryColor }}>
-                              <Package size={14} />
-                            </div>
-                            {p.name}
-                          </div>
-                        </td>
-                        <td style={tableCellStyle}>{p.category}</td>
-                        <td style={{ ...tableCellStyle, fontWeight: '700' }}>${parseFloat(p.price).toFixed(2)}</td>
-                        <td style={tableCellStyle}>
-                          <span style={{ 
-                            padding: '4px 10px', 
-                            borderRadius: '20px', 
-                            fontSize: '0.75rem', 
-                            fontWeight: '600', 
-                            background: '#dcfce7', 
-                            color: '#166534' 
-                          }}>Active</span>
-                        </td>
-                        <td style={tableCellStyle}>
-                          <ArrowUpRight size={18} style={{ color: '#94a3b8', cursor: 'pointer' }} />
-                        </td>
-                      </tr>
-                    )) : (
-                      <tr>
-                        <td colSpan="5" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>No products found. Start by generating one!</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              {recentProducts.length > productsPerPage && (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', padding: '1rem', borderTop: '1px solid #e2e8f0', background: '#f8fafc' }}>
-                  <button 
-                    disabled={currentPage === 1} 
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    style={{ padding: '0.5rem 1rem', border: '1px solid #e2e8f0', borderRadius: '6px', background: currentPage === 1 ? '#f1f5f9' : 'white', color: currentPage === 1 ? '#94a3b8' : '#1e293b', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
-                  >
-                    Previous
-                  </button>
-                  <span style={{ fontSize: '0.9rem', color: '#64748b' }}>
-                    Page {currentPage} of {Math.ceil(recentProducts.length / productsPerPage)}
-                  </span>
-                  <button 
-                    disabled={currentPage >= Math.ceil(recentProducts.length / productsPerPage)} 
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(recentProducts.length / productsPerPage)))}
-                    style={{ padding: '0.5rem 1rem', border: '1px solid #e2e8f0', borderRadius: '6px', background: currentPage >= Math.ceil(recentProducts.length / productsPerPage) ? '#f1f5f9' : 'white', color: currentPage >= Math.ceil(recentProducts.length / productsPerPage) ? '#94a3b8' : '#1e293b', cursor: currentPage >= Math.ceil(recentProducts.length / productsPerPage) ? 'not-allowed' : 'pointer' }}
-                  >
-                    Next
-                  </button>
-                </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '3rem' }}>
+          {/* LIVE SHOPS */}
+          <section>
+            <h2 style={{ fontSize: '1rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Rocket size={18} style={{ color: '#10b981' }} /> Published & Live
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+              {published.length > 0 ? published.map(shop => (
+                <SelectionCard key={shop.id} shop={shop} onClick={() => onSelect(shop)} type="live" />
+              )) : (
+                <EmptyCard message="No shops live yet. Complete a draft to publish!" />
               )}
-            </section>
-          </>
-        )}
-
-        {activeTab === 'products' && (
-          <section style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-            <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontWeight: '700', color: '#1e293b' }}>All Vendor Products</h3>
-              <button onClick={() => navigate('/products')} style={{ background: primaryColor, color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: '600' }}>
-                <Plus size={16} /> Add Product
-              </button>
             </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ background: '#f8fafc' }}>
-                    <th style={tableHeaderStyle}>Product Name</th>
-                    <th style={tableHeaderStyle}>Category</th>
-                    <th style={tableHeaderStyle}>Price</th>
-                    <th style={tableHeaderStyle}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentProducts.length > 0 ? recentProducts.slice((currentPage - 1) * productsPerPage, currentPage * productsPerPage).map((p, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={tableCellStyle}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={{ width: '32px', height: '32px', background: '#f1f5f9', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: primaryColor }}>
-                            <Package size={14} />
-                          </div>
-                          {p.name}
-                        </div>
-                      </td>
-                      <td style={tableCellStyle}>{p.category}</td>
-                      <td style={{ ...tableCellStyle, fontWeight: '700' }}>${parseFloat(p.price).toFixed(2)}</td>
-                      <td style={tableCellStyle}>
-                        <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '600', background: '#dcfce7', color: '#166534' }}>Active</span>
-                      </td>
-                    </tr>
-                  )) : (
-                    <tr>
-                      <td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>No products found. Start by generating one!</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {recentProducts.length > productsPerPage && (
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', padding: '1rem', borderTop: '1px solid #e2e8f0', background: '#f8fafc' }}>
-                <button 
-                  disabled={currentPage === 1} 
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  style={{ padding: '0.5rem 1rem', border: '1px solid #e2e8f0', borderRadius: '6px', background: currentPage === 1 ? '#f1f5f9' : 'white', color: currentPage === 1 ? '#94a3b8' : '#1e293b', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
-                >
-                  Previous
-                </button>
-                <span style={{ fontSize: '0.9rem', color: '#64748b' }}>
-                  Page {currentPage} of {Math.ceil(recentProducts.length / productsPerPage)}
-                </span>
-                <button 
-                  disabled={currentPage >= Math.ceil(recentProducts.length / productsPerPage)} 
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(recentProducts.length / productsPerPage)))}
-                  style={{ padding: '0.5rem 1rem', border: '1px solid #e2e8f0', borderRadius: '6px', background: currentPage >= Math.ceil(recentProducts.length / productsPerPage) ? '#f1f5f9' : 'white', color: currentPage >= Math.ceil(recentProducts.length / productsPerPage) ? '#94a3b8' : '#1e293b', cursor: currentPage >= Math.ceil(recentProducts.length / productsPerPage) ? 'not-allowed' : 'pointer' }}
-                >
-                  Next
-                </button>
-              </div>
-            )}
           </section>
-        )}
 
-        {activeTab === 'my-business' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-            {shops.length > 0 ? shops.map((shop, idx) => (
-              <div 
-                key={idx} 
-                onClick={() => handleShopClick(shop)}
-                style={{ 
-                  background: 'white', 
-                  borderRadius: '16px', 
-                  border: '1px solid #e2e8f0', 
-                  padding: '1.5rem',
-                  cursor: 'pointer',
-                  transition: 'transform 0.2s, box-shadow 0.2s',
-                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
-                }}
-                onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-5px)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,0,0,0.1)'; }}
-                onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.05)'; }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-                  <div style={{ background: shop.config?.theme?.primary || primaryColor, color: 'white', padding: '12px', borderRadius: '12px' }}>
-                    <Store size={24} />
-                  </div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#1e293b' }}>{shop.shop_name}</h3>
-                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>Layout: {shop.config?.layout || 'Standard'}</p>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px dashed #e2e8f0' }}>
-                  <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                    <strong>{shop.config?.products?.length || 0}</strong> Generated Products
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', color: primaryColor, fontSize: '0.85rem', fontWeight: '600' }}>
-                    View Dashboard <ChevronRight size={16} style={{ marginLeft: '4px' }} />
-                  </div>
-                </div>
-              </div>
-            )) : (
-              <div style={{ gridColumn: '1 / -1', background: 'white', padding: '3rem', textAlign: 'center', borderRadius: '16px', border: '1px dashed #cbd5e1' }}>
-                <Store size={48} style={{ color: '#94a3b8', marginBottom: '1rem' }} />
-                <h3 style={{ color: '#1e293b', marginBottom: '0.5rem' }}>No Shops Yet</h3>
-                <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Generate your first shop using the AI generator to see it here.</p>
-                <button onClick={() => navigate('/')} style={{ background: primaryColor, color: 'white', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>Go to Generator</button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'shop-dashboard' && selectedShop && (
-          <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '2rem' }}>
-              <StatCard 
-                title="Shop Products" 
-                value={shopLiveProducts.length} 
-                change="Active Items" 
-                icon={<Package size={20} />} 
-                color={selectedShop.config?.theme?.primary || primaryColor} 
-              />
-              <StatCard 
-                title="Theme Applied" 
-                value="Custom" 
-                change="AI Color Sync" 
-                icon={<Settings size={20} />} 
-                color={selectedShop.config?.theme?.accent || "#22c55e"} 
-              />
-              <StatCard 
-                title="Layout Style" 
-                value={selectedShop.config?.layout || "Standard"} 
-                change="Optimized UI" 
-                icon={<Layers size={20} />} 
-                color="#f59e0b" 
-              />
-              <div style={{ 
-                background: selectedShop.config?.theme?.primary || primaryColor, 
-                borderRadius: '16px', 
-                padding: '1.5rem', 
-                display: 'flex', 
-                flexDirection: 'column', 
-                justifyContent: 'center', 
-                color: 'white',
-                boxShadow: `0 10px 15px -3px ${selectedShop.config?.theme?.primary || primaryColor}44`
-              }}>
-                <p style={{ fontSize: '0.85rem', opacity: 0.8 }}>Ready for more?</p>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '0.5rem' }}>Add New Product</h3>
-                <button 
-                  onClick={() => {
-                    navigate('/products', { state: { defaultCategory: getShopCategory(selectedShop), shopId: selectedShop.id } });
-                  }}
-                  style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', padding: '0.4rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Plus size={18} />
-                </button>
-              </div>
+          {/* DRAFT SHOPS */}
+          <section>
+            <h2 style={{ fontSize: '1rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Edit3 size={18} style={{ color: '#f59e0b' }} /> In Progress Drafts
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+              {drafts.length > 0 ? drafts.map(shop => (
+                <SelectionCard key={shop.id} shop={shop} onClick={() => onSelect(shop)} type="draft" />
+              )) : (
+                <EmptyCard message="No drafts found. Use the AI generator to start!" />
+              )}
             </div>
-
-            <section style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-              <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ fontWeight: '700', color: '#1e293b' }}>{selectedShop.shop_name} Inventory</h3>
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc' }}>
-                      <th style={tableHeaderStyle}>Product Name</th>
-                      <th style={tableHeaderStyle}>Price</th>
-                      <th style={tableHeaderStyle}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {shopLiveProducts.length > 0 ? shopLiveProducts.map((p, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={tableCellStyle}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{ width: '32px', height: '32px', background: `${selectedShop.config?.theme?.primary}11` || '#f1f5f9', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: selectedShop.config?.theme?.primary || primaryColor }}>
-                              <Package size={14} />
-                            </div>
-                            {p.name}
-                          </div>
-                        </td>
-                        <td style={{ ...tableCellStyle, fontWeight: '700' }}>${parseFloat(p.price || 0).toFixed(2)}</td>
-                        <td style={tableCellStyle}>
-                          <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '600', background: '#dcfce7', color: '#166534' }}>Active</span>
-                        </td>
-                      </tr>
-                    )) : (
-                      <tr>
-                        <td colSpan="3" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>No live products found for this shop. Click "Add New Product" to add some!</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </>
-        )}
-
-      </main>
-
-      {/* ORDERS TAB CONTENT - Rendered outside main to use full width */}
-      {activeTab === 'orders' && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '2rem', marginTop: '-2rem' }}>
-          {/* Filter Row */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
-            {['all', 'pending', 'confirmed', 'completed', 'cancelled'].map(status => {
-              const statusIcons = { pending: <Clock size={14} />, confirmed: <CheckCircle size={14} />, completed: <CheckCircle size={14} />, cancelled: <XCircle size={14} /> };
-              const isActive = orderFilter === status;
-              return (
-                <button
-                  key={status}
-                  onClick={() => setOrderFilter(status)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '100px',
-                    border: isActive ? `2px solid ${primaryColor}` : '1px solid #e2e8f0',
-                    background: isActive ? primaryColor : 'white',
-                    color: isActive ? 'white' : '#64748b',
-                    fontWeight: '700',
-                    fontSize: '0.8rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontFamily: 'inherit',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {status === 'all' ? 'All' : statusIcons[status]}
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Loading */}
-          {ordersLoading && (
-            <div style={{ textAlign: 'center', padding: '4rem' }}>
-              <Loader2 size={32} style={{ color: primaryColor, animation: 'spin 1s linear infinite' }} />
-              <p style={{ color: '#64748b', marginTop: '1rem' }}>Loading orders...</p>
-              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-            </div>
-          )}
-
-          {/* Orders Table */}
-          {!ordersLoading && (
-            <section style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-              <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ fontWeight: '700', color: '#1e293b' }}>Incoming Orders ({vendorOrders.length})</h3>
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc' }}>
-                      <th style={tableHeaderStyle}>Order ID</th>
-                      <th style={tableHeaderStyle}>Product</th>
-                      <th style={tableHeaderStyle}>Qty</th>
-                      <th style={tableHeaderStyle}>Unit Price</th>
-                      <th style={tableHeaderStyle}>Total</th>
-                      <th style={tableHeaderStyle}>Status</th>
-                      <th style={tableHeaderStyle}>Date</th>
-                      <th style={tableHeaderStyle}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {vendorOrders.length > 0 ? vendorOrders.map((order) => {
-                      const statusColors = {
-                        pending:   { bg: '#fef3c7', color: '#f59e0b' },
-                        confirmed: { bg: '#dbeafe', color: '#3b82f6' },
-                        completed: { bg: '#dcfce7', color: '#22c55e' },
-                        cancelled: { bg: '#fee2e2', color: '#ef4444' }
-                      };
-                      const sc = statusColors[order.status] || statusColors.pending;
-                      return (
-                        <tr key={order.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={tableCellStyle}>
-                            <span style={{ fontWeight: '700', color: primaryColor }}>#{order.id}</span>
-                          </td>
-                          <td style={tableCellStyle}>{order.product_id}</td>
-                          <td style={tableCellStyle}>{order.quantity}</td>
-                          <td style={{ ...tableCellStyle, fontWeight: '600' }}>LKR {parseFloat(order.unit_price).toFixed(2)}</td>
-                          <td style={{ ...tableCellStyle, fontWeight: '700' }}>LKR {parseFloat(order.total_price).toFixed(2)}</td>
-                          <td style={tableCellStyle}>
-                            <span style={{
-                              padding: '4px 12px',
-                              borderRadius: '20px',
-                              fontSize: '0.75rem',
-                              fontWeight: '700',
-                              background: sc.bg,
-                              color: sc.color
-                            }}>
-                              {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                            </span>
-                          </td>
-                          <td style={{ ...tableCellStyle, fontSize: '0.8rem', color: '#64748b' }}>
-                            {new Date(order.created_at).toLocaleDateString('en-LK', { month: 'short', day: 'numeric' })}
-                          </td>
-                          <td style={tableCellStyle}>
-                            {(order.status === 'pending' || order.status === 'confirmed') && (
-                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                {order.status === 'pending' && (
-                                  <button
-                                    onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}
-                                    disabled={updatingOrderId === order.id}
-                                    style={{
-                                      padding: '4px 10px',
-                                      borderRadius: '6px',
-                                      border: 'none',
-                                      background: '#dbeafe',
-                                      color: '#3b82f6',
-                                      fontWeight: '700',
-                                      fontSize: '0.75rem',
-                                      cursor: 'pointer',
-                                      fontFamily: 'inherit'
-                                    }}
-                                  >
-                                    Confirm
-                                  </button>
-                                )}
-                                {order.status === 'confirmed' && (
-                                  <button
-                                    onClick={() => handleUpdateOrderStatus(order.id, 'completed')}
-                                    disabled={updatingOrderId === order.id}
-                                    style={{
-                                      padding: '4px 10px',
-                                      borderRadius: '6px',
-                                      border: 'none',
-                                      background: '#dcfce7',
-                                      color: '#22c55e',
-                                      fontWeight: '700',
-                                      fontSize: '0.75rem',
-                                      cursor: 'pointer',
-                                      fontFamily: 'inherit'
-                                    }}
-                                  >
-                                    Complete
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleUpdateOrderStatus(order.id, 'cancelled')}
-                                  disabled={updatingOrderId === order.id}
-                                  style={{
-                                    padding: '4px 10px',
-                                    borderRadius: '6px',
-                                    border: 'none',
-                                    background: '#fee2e2',
-                                    color: '#ef4444',
-                                    fontWeight: '700',
-                                    fontSize: '0.75rem',
-                                    cursor: 'pointer',
-                                    fontFamily: 'inherit'
-                                  }}
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            )}
-                            {(order.status === 'completed' || order.status === 'cancelled') && (
-                              <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>—</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    }) : (
-                      <tr>
-                        <td colSpan="8" style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>
-                          <ClipboardList size={40} style={{ color: '#cbd5e1', marginBottom: '0.5rem' }} />
-                          <p style={{ fontWeight: '600' }}>{orderFilter === 'all' ? 'No orders received yet.' : `No ${orderFilter} orders.`}</p>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
+          </section>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-// Sub-components for cleaner structure
-function NavItem({ icon, label, active = false, primaryColor, onClick }) {
+// ==========================================
+// VIEW 2: LIVE SHOP DASHBOARD
+// ==========================================
+function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiveTab }) {
+  const primary = shop.config?.theme?.primary || '#6366f1';
+  const shopProducts = products.filter(p => shop.config?.products?.some(sp => sp.name === p.name));
+  const shopOrders = orders.filter(o => o.shop_id === shop.id);
+
+  return (
+    <div style={{ display: 'flex', height: '100vh', background: '#f1f5f9' }}>
+      {/* Sidebar */}
+      <aside style={{ width: '280px', background: 'white', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '2rem', borderBottom: '1px solid #f1f5f9' }}>
+           <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', cursor: 'pointer', marginBottom: '1rem' }}>
+             <ArrowLeft size={14} /> Switch Shop
+           </button>
+           <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '900', color: '#1e293b' }}>{shop.shop_name}</h2>
+           <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: '700' }}>● LIVE STORE</span>
+        </div>
+        <nav style={{ flex: 1, padding: '1.5rem' }}>
+          <SidebarLink icon={<TrendingUp size={18} />} label="Performance" active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} color={primary} />
+          <SidebarLink icon={<Package size={18} />} label="Products" active={activeTab === 'products'} onClick={() => setActiveTab('products')} color={primary} />
+          <SidebarLink icon={<ClipboardList size={18} />} label="Orders" active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} color={primary} />
+          <SidebarLink icon={<User size={18} />} label="Customers" active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} color={primary} />
+          <SidebarLink icon={<Settings size={18} />} label="Store Settings" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} color={primary} />
+        </nav>
+      </aside>
+
+      {/* Main */}
+      <main style={{ flex: 1, overflowY: 'auto', padding: '3rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
+          <div>
+            <h1 style={{ fontSize: '2rem', fontWeight: '900', color: '#1e293b', margin: 0 }}>Business Overview</h1>
+            <p style={{ color: '#64748b' }}>Track your sales and operational growth.</p>
+          </div>
+          <button onClick={() => window.open(`http://localhost:5174/shop/${shop.id}`, '_blank')} style={{ background: primary, color: 'white', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            Go to Store <Eye size={18} />
+          </button>
+        </div>
+
+        {/* Stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
+          <MetricCard label="Revenue" value={`LKR ${(shopOrders.reduce((s, o) => s + parseFloat(o.total_price), 0)).toLocaleString()}`} color={primary} />
+          <MetricCard label="Orders" value={shopOrders.length} color="#8b5cf6" />
+          <MetricCard label="Total Products" value={shopProducts.length} color="#f59e0b" />
+        </div>
+
+        {/* Recent Orders */}
+        <div style={{ background: 'white', borderRadius: '24px', padding: '2rem', border: '1px solid #e2e8f0' }}>
+          <h3 style={{ margin: '0 0 1.5rem 0', fontWeight: '800' }}>Recent Transactions</h3>
+          {shopOrders.length > 0 ? (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+               <thead>
+                 <tr style={{ textAlign: 'left', color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase' }}>
+                   <th style={{ padding: '1rem' }}>Order ID</th>
+                   <th style={{ padding: '1rem' }}>Product</th>
+                   <th style={{ padding: '1rem' }}>Status</th>
+                   <th style={{ padding: '1rem' }}>Total</th>
+                 </tr>
+               </thead>
+               <tbody>
+                 {shopOrders.slice(0, 5).map(order => (
+                   <tr key={order.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                     <td style={{ padding: '1rem', fontWeight: '700', color: primary }}>#{order.id}</td>
+                     <td style={{ padding: '1rem' }}>{order.product_id}</td>
+                     <td style={{ padding: '1rem' }}>
+                       <span style={{ padding: '4px 10px', borderRadius: '100px', fontSize: '0.75rem', fontWeight: '700', background: '#dcfce7', color: '#166534' }}>{order.status}</span>
+                     </td>
+                     <td style={{ padding: '1rem', fontWeight: '700' }}>LKR {parseFloat(order.total_price).toLocaleString()}</td>
+                   </tr>
+                 ))}
+               </tbody>
+            </table>
+          ) : <p style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem' }}>No orders found yet.</p>}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// ==========================================
+// VIEW 3: DRAFT SHOP DASHBOARD
+// ==========================================
+function DraftShopDashboard({ shop, onBack, activeTab, setActiveTab }) {
+  const primary = '#f59e0b'; // Amber for draft
+
+  return (
+    <div style={{ display: 'flex', height: '100vh', background: '#fffbeb' }}>
+      {/* Sidebar */}
+      <aside style={{ width: '280px', background: 'white', borderRight: '1px solid #fef3c7', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '2rem', borderBottom: '1px solid #fff7ed' }}>
+           <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', cursor: 'pointer', marginBottom: '1rem' }}>
+             <ArrowLeft size={14} /> Switch Shop
+           </button>
+           <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '900', color: '#1e293b' }}>{shop.shop_name}</h2>
+           <span style={{ fontSize: '0.75rem', color: '#f59e0b', fontWeight: '700' }}>● DRAFT MODE</span>
+        </div>
+        <nav style={{ flex: 1, padding: '1.5rem' }}>
+          <SidebarLink icon={<Rocket size={18} />} label="Launch Checklist" active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} color={primary} />
+          <SidebarLink icon={<Edit3 size={18} />} label="AI Customization" active={activeTab === 'ai'} onClick={() => setActiveTab('ai')} color={primary} />
+          <SidebarLink icon={<Package size={18} />} label="Product Setup" active={activeTab === 'products'} onClick={() => setActiveTab('products')} color={primary} />
+          <SidebarLink icon={<Eye size={18} />} label="Preview Store" active={activeTab === 'preview'} onClick={() => setActiveTab('preview')} color={primary} />
+        </nav>
+      </aside>
+
+      {/* Main */}
+      <main style={{ flex: 1, overflowY: 'auto', padding: '3rem' }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <div style={{ marginBottom: '3rem' }}>
+            <h1 style={{ fontSize: '2rem', fontWeight: '900', color: '#451a03', margin: 0 }}>Launch Your Business</h1>
+            <p style={{ color: '#92400e' }}>Complete the steps below to go live on our marketplace.</p>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <ChecklistItem title="Generate Brand Identity" completed={true} />
+            <ChecklistItem title="Add at least 3 products" completed={shop.config?.products?.length >= 3} />
+            <ChecklistItem title="Configure delivery options" completed={false} />
+            <ChecklistItem title="Final store review" completed={false} />
+          </div>
+
+          <div style={{ marginTop: '3rem', padding: '2.5rem', background: 'white', borderRadius: '24px', border: '2px dashed #f59e0b', textAlign: 'center' }}>
+             <Rocket size={48} style={{ color: '#f59e0b', marginBottom: '1rem' }} />
+             <h3 style={{ margin: '0 0 0.5rem 0', fontWeight: '800' }}>Ready to go?</h3>
+             <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Once you finish the checklist, you can publish your shop to the global marketplace.</p>
+             <button disabled style={{ background: '#cbd5e1', color: 'white', border: 'none', padding: '12px 32px', borderRadius: '12px', fontWeight: '700', cursor: 'not-allowed' }}>
+               Publish Now
+             </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// ==========================================
+// SHARED UI COMPONENTS
+// ==========================================
+
+function SelectionCard({ shop, onClick, type }) {
+  const color = type === 'live' ? '#10b981' : '#f59e0b';
   return (
     <div 
       onClick={onClick}
-      style={{ 
-      display: 'flex', 
-      alignItems: 'center', 
-      gap: '12px', 
-      padding: '0.75rem 1rem', 
-      borderRadius: '10px',
-      cursor: 'pointer',
-      color: active ? primaryColor : '#64748b',
-      background: active ? `${primaryColor}11` : 'transparent',
-      fontWeight: active ? '700' : '500',
-      marginBottom: '4px',
-      transition: 'all 0.2s'
-    }}>
+      style={{ background: 'white', borderRadius: '20px', padding: '1.5rem', cursor: 'pointer', border: '1px solid #e2e8f0', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '1rem' }}
+      onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-5px)'; e.currentTarget.style.borderColor = color; }}
+      onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+    >
+      <div style={{ width: '60px', height: '60px', borderRadius: '15px', background: `${color}15`, color: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Store size={30} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: '#1e293b' }}>{shop.shop_name}</h3>
+        <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>{type === 'live' ? 'View live performance' : 'Complete configuration'}</p>
+      </div>
+      <ChevronRight size={20} style={{ color: '#cbd5e1' }} />
+    </div>
+  );
+}
+
+function SidebarLink({ icon, label, active, onClick, color }) {
+  return (
+    <div 
+      onClick={onClick}
+      style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '1rem', borderRadius: '12px', cursor: 'pointer', color: active ? 'white' : '#64748b', background: active ? color : 'transparent', fontWeight: active ? '700' : '500', marginBottom: '8px', transition: 'all 0.2s' }}>
       {icon}
       <span style={{ fontSize: '0.9rem' }}>{label}</span>
-      {active && <div style={{ marginLeft: 'auto', width: '4px', height: '16px', background: primaryColor, borderRadius: '4px' }}></div>}
     </div>
   );
 }
 
-function StatCard({ title, value, change, icon, color }) {
+function MetricCard({ label, value, color }) {
   return (
-    <div style={{ background: 'white', padding: '1.5rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-        <div style={{ background: `${color}22`, color: color, padding: '8px', borderRadius: '10px' }}>
-          {icon}
-        </div>
-        <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#22c55e', background: '#dcfce7', padding: '2px 8px', borderRadius: '10px', alignSelf: 'start' }}>
-          {change}
-        </span>
-      </div>
-      <h4 style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '500', margin: '0 0 5px 0' }}>{title}</h4>
-      <p style={{ fontSize: '1.5rem', fontWeight: '800', color: '#1e293b', margin: 0 }}>{value}</p>
+    <div style={{ background: 'white', padding: '1.5rem', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
+      <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', fontWeight: '600', marginBottom: '4px' }}>{label}</p>
+      <h4 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '900', color: '#1e293b' }}>{value}</h4>
+      <div style={{ height: '4px', width: '40px', background: color, borderRadius: '2px', marginTop: '12px' }}></div>
     </div>
   );
 }
 
-const tableHeaderStyle = { padding: '12px 1.5rem', fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '700' };
-const tableCellStyle = { padding: '1rem 1.5rem', fontSize: '0.9rem', color: '#1e293b' };
+function ChecklistItem({ title, completed }) {
+  return (
+    <div style={{ background: 'white', padding: '1.25rem', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '1rem', border: '1px solid #e2e8f0', opacity: completed ? 0.6 : 1 }}>
+      {completed ? <CheckCircle style={{ color: '#10b981' }} size={20} /> : <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid #cbd5e1' }}></div>}
+      <span style={{ fontWeight: '600', color: '#1e293b' }}>{title}</span>
+    </div>
+  );
+}
+
+function EmptyCard({ message }) {
+  return (
+    <div style={{ padding: '2rem', border: '1px dashed #cbd5e1', borderRadius: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>
+      {message}
+    </div>
+  );
+}
 
 export default Dashboard;
