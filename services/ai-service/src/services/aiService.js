@@ -196,11 +196,12 @@ const getPublishedShops = async () => {
 };
 
 const getPublicShops = async () => {
-    const query = `SELECT id, shop_name, config FROM shops WHERE is_published = true ORDER BY created_at DESC;`;
+    const query = `SELECT id, vendor_id, shop_name, config FROM shops WHERE is_published = true ORDER BY created_at DESC;`;
     const { rows } = await pool.query(query);
     
     return rows.map(shop => ({
         id: shop.id,
+        vendor_id: shop.vendor_id,
         shopName: shop.shop_name,
         navigation: shop.config?.navigation || [],
         products: shop.config?.products || [],
@@ -209,7 +210,7 @@ const getPublicShops = async () => {
 };
 
 const getPublicShopById = async (id) => {
-    const query = `SELECT id, shop_name, config FROM shops WHERE id = $1 AND is_published = true;`;
+    const query = `SELECT id, vendor_id, shop_name, config FROM shops WHERE id = $1 AND is_published = true;`;
     const { rows } = await pool.query(query, [id]);
     
     if (rows.length === 0) return null;
@@ -217,6 +218,7 @@ const getPublicShopById = async (id) => {
     const shop = rows[0];
     return {
         id: shop.id,
+        vendor_id: shop.vendor_id,
         shopName: shop.shop_name,
         navigation: shop.config?.navigation || [],
         products: shop.config?.products || [],

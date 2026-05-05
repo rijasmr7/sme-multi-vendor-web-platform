@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import { ChevronLeft, ShoppingCart, Package, Info, Mail, Star, Phone, Menu, X } from 'lucide-react';
+import { ChevronLeft, ShoppingCart, Package, Info, Mail, Star, Phone, Menu, X, Minus, Plus, ClipboardList } from 'lucide-react';
 
 const GATEWAY_URL = 'http://localhost:5000';
 
@@ -11,9 +11,34 @@ const ShopView = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [orderStatus, setOrderStatus] = useState(null);
+  const [orderLoading, setOrderLoading] = useState(null);
+  const [quantities, setQuantities] = useState({});
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [user, setUser] = useState(null);
+  const [shopOrders, setShopOrders] = useState([]);
+  const [showOrdersModal, setShowOrdersModal] = useState(false);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [cartItems, setCartItems] = useState([]);
+  const [showCartModal, setShowCartModal] = useState(false);
+  
+  // Checkout Modal State
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [selectedProductForCheckout, setSelectedProductForCheckout] = useState(null);
+  const [checkoutProductIdx, setCheckoutProductIdx] = useState(null);
+  const [deliveryType, setDeliveryType] = useState('shop_pickup');
+  const [deliveryDetails, setDeliveryDetails] = useState({
+    customer_name: '',
+    customer_phone: '',
+    address_line: '',
+    city: '',
+    zip_code: ''
+  });
+
+  useEffect(() => {
+    const storedCart = localStorage.getItem('cart');
+    if (storedCart) setCartItems(JSON.parse(storedCart));
+  }, []);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('customer');
@@ -52,9 +77,156 @@ const ShopView = () => {
     fetchShop();
   }, [id]);
 
-  const handleOrder = (productName) => {
-    setOrderStatus(`Order placed for ${productName}!`);
-    setTimeout(() => setOrderStatus(null), 3000);
+  const getQuantity = (idx) => quantities[idx] || 1;
+
+  const updateQuantity = (idx, delta) => {
+    setQuantities(prev => ({
+      ...prev,
+      [idx]: Math.max(1, (prev[idx] || 1) + delta)
+    }));
+  };
+
+  const fetchCartItems = async () => {
+    if (!user) return;
+    const token = localStorage.getItem('token');
+    try {
+      const response = await axios.get(`${GATEWAY_URL}/cart/customer/${user.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setCartItems(response.data.data);
+      }
+    } catch (err) {
+      console.error("Error fetching cart items:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchCartItems();
+  }, [user]);
+
+  const handleAddToCart = async (product, idx) => {
+    const token = localStorage.getItem('token');
+    if (!token || !user) {
+      setOrderStatus({ type: 'error', text: 'Please sign in to add to cart.' });
+      setTimeout(() => setOrderStatus(null), 3000);
+      return;
+    }
+
+    const qty = getQuantity(idx);
+    
+    try {
+      const response = await axios.post(`${GATEWAY_URL}/cart`, {
+        vendor_id: shop.vendor_id || 1,
+        shop_id: id,
+        product_id: product.name,
+        quantity: qty,
+        unit_price: product.price
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setOrderStatus({ type: 'success', text: `Added ${product.name} (x${qty}) to cart!` });
+        fetchCartItems(); // Refresh cart items from server
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to add to cart. Try again.';
+      setOrderStatus({ type: 'error', text: msg });
+    } finally {
+      setTimeout(() => setOrderStatus(null), 3000);
+    }
+  };
+
+  const handleOrder = async (product, idx) => {
+    const token = localStorage.getItem('token');
+    if (!token || !user) {
+      setOrderStatus({ type: 'error', text: 'Please sign in to place an order.' });
+      setTimeout(() => setOrderStatus(null), 3000);
+      return;
+    }
+
+    try {
+        const response = await axios.get(`${GATEWAY_URL}/orders/customer/${user.id}/address`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.data.success && response.data.data && Object.keys(response.data.data).length > 0) {
+            const addr = response.data.data;
+            setDeliveryDetails({
+                customer_name: addr.customer_name || user.name,
+                customer_phone: addr.customer_phone || '',
+                address_line: addr.address_line || '',
+                city: addr.city || '',
+                zip_code: addr.zip_code || ''
+            });
+        } else {
+            setDeliveryDetails(prev => ({ ...prev, customer_name: user.name }));
+        }
+    } catch (err) {
+        setDeliveryDetails(prev => ({ ...prev, customer_name: user.name }));
+    }
+
+    setSelectedProductForCheckout(product);
+    setCheckoutProductIdx(idx);
+    setShowCheckoutModal(true);
+  };
+
+  const submitOrder = async () => {
+    const token = localStorage.getItem('token');
+    const qty = getQuantity(checkoutProductIdx);
+    setOrderLoading(true);
+
+    try {
+      const response = await axios.post(`${GATEWAY_URL}/orders`, {
+        vendor_id: shop.vendor_id || 1,
+        shop_id: id,
+        product_id: selectedProductForCheckout.name,
+        quantity: qty,
+        unit_price: selectedProductForCheckout.price,
+        delivery_type: deliveryType,
+        customer_name: deliveryDetails.customer_name,
+        customer_phone: deliveryDetails.customer_phone,
+        address_line: deliveryType === 'home_delivery' ? deliveryDetails.address_line : '',
+        city: deliveryType === 'home_delivery' ? deliveryDetails.city : '',
+        zip_code: deliveryType === 'home_delivery' ? deliveryDetails.zip_code : ''
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        const total = parseFloat(response.data.data.total_price).toLocaleString('en-LK', { minimumFractionDigits: 2 });
+        setOrderStatus({ type: 'success', text: `Order placed for ${selectedProductForCheckout.name} (x${qty}) — LKR ${total}` });
+        setShowCheckoutModal(false);
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to place order. Try again.';
+      setOrderStatus({ type: 'error', text: msg });
+    } finally {
+      setOrderLoading(false);
+      setTimeout(() => setOrderStatus(null), 4000);
+    }
+  };
+
+  const fetchShopOrders = async () => {
+    const token = localStorage.getItem('token');
+    if (!token || !user) return;
+    
+    setOrdersLoading(true);
+    setShowOrdersModal(true);
+    try {
+      const response = await axios.get(`${GATEWAY_URL}/orders/customer/${user.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        // Filter orders only for this shop
+        const filtered = response.data.data.filter(o => o.vendor_id == shop.vendor_id);
+        setShopOrders(filtered);
+      }
+    } catch (err) {
+      console.error("Error fetching shop orders:", err);
+    } finally {
+      setOrdersLoading(false);
+    }
   };
 
   if (loading) {
@@ -126,10 +298,26 @@ const ShopView = () => {
             </span>
           ))}
 
+          {/* Shop Specific Orders Link */}
+          {!isMobile && user && (
+            <span style={{ 
+              display: 'flex', alignItems: 'center', gap: '6px', 
+              color: textColor, fontWeight: '600', fontSize: '0.9rem', cursor: 'pointer', transition: 'color 0.2s' 
+            }}
+              onClick={fetchShopOrders}
+              onMouseOver={(e) => e.currentTarget.style.color = primaryColor}
+              onMouseOut={(e) => e.currentTarget.style.color = textColor}
+            >
+              <ClipboardList size={18} /> My Orders
+            </span>
+          )}
+
           {/* Cart Icon */}
-          <div style={{ position: 'relative', cursor: 'pointer' }}>
+          <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => setShowCartModal(true)}>
             <ShoppingCart size={24} style={{ color: textColor }} />
-            <div style={{ position: 'absolute', top: '-8px', right: '-8px', background: primaryColor, color: 'white', width: '18px', height: '18px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: '800' }}>0</div>
+            <div style={{ position: 'absolute', top: '-8px', right: '-8px', background: primaryColor, color: 'white', width: '18px', height: '18px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: '800' }}>
+              {cartItems.filter(item => item.shop_id == id).reduce((sum, item) => sum + item.quantity, 0)}
+            </div>
           </div>
 
           <div style={{ width: '1px', height: '24px', background: '#e2e8f0', display: isMobile ? 'none' : 'block' }}></div>
@@ -199,6 +387,28 @@ const ShopView = () => {
             </div>
           ))}
 
+          {/* Mobile Orders Link */}
+          {user && (
+            <div style={{ 
+              fontSize: '1.25rem', 
+              fontWeight: '700', 
+              color: textColor,
+              padding: '1rem',
+              borderBottom: `1px solid ${primaryColor}22`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              cursor: 'pointer'
+            }}
+            onClick={() => {
+              setIsMenuOpen(false);
+              fetchShopOrders();
+            }}
+            >
+              <ClipboardList size={24} style={{ color: primaryColor }} /> My Orders
+            </div>
+          )}
+
           <div style={{ marginTop: '1rem' }}>
               {user ? (
                 <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -263,18 +473,20 @@ const ShopView = () => {
             position: 'fixed', 
             bottom: '2rem', 
             right: '2rem', 
-            background: primaryColor, 
+            left: isMobile ? '2rem' : 'auto',
+            background: orderStatus.type === 'error' ? '#ef4444' : primaryColor, 
             color: 'white', 
             padding: '1rem 2rem', 
             borderRadius: '12px', 
-            boxShadow: `0 10px 15px -3px ${primaryColor}66`,
+            boxShadow: orderStatus.type === 'error' ? '0 10px 15px -3px rgba(239,68,68,0.4)' : `0 10px 15px -3px ${primaryColor}66`,
             zIndex: 2000,
             fontWeight: '700',
             display: 'flex',
             alignItems: 'center',
-            gap: '10px'
+            gap: '10px',
+            maxWidth: '500px'
           }}>
-            <ShoppingCart size={20} /> {orderStatus}
+            <ShoppingCart size={20} /> {orderStatus.text}
           </div>
         )}
 
@@ -308,7 +520,7 @@ const ShopView = () => {
               <div>
                 <h4 style={{ fontSize: '1.25rem', fontWeight: '700', color: textColor, marginBottom: '0.25rem' }}>{product.name}</h4>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                  <span style={{ fontSize: '1.5rem', fontWeight: '800', color: primaryColor }}>${product.price || '9.99'}</span>
+                  <span style={{ fontSize: '1.5rem', fontWeight: '800', color: primaryColor }}>LKR {parseFloat(product.price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span>
                   <span style={{ fontSize: '0.75rem', background: `${primaryColor}22`, color: primaryColor, padding: '4px 8px', borderRadius: '6px', fontWeight: '700' }}>In Stock</span>
                 </div>
                 
@@ -317,14 +529,48 @@ const ShopView = () => {
                     {product.description}
                   </p>
                 )}
+
+                {/* Quantity Selector */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: '700', color: textColor, opacity: 0.7 }}>Qty:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${primaryColor}44`, borderRadius: '10px', overflow: 'hidden' }}>
+                    <button
+                      type="button"
+                      onClick={() => updateQuantity(idx, -1)}
+                      style={{ background: 'none', border: 'none', padding: '6px 12px', cursor: 'pointer', color: primaryColor, fontWeight: '800', fontSize: '1rem' }}
+                    >
+                      <Minus size={16} />
+                    </button>
+                    <span style={{ padding: '6px 14px', fontWeight: '800', color: textColor, fontSize: '0.95rem', minWidth: '30px', textAlign: 'center' }}>
+                      {getQuantity(idx)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => updateQuantity(idx, 1)}
+                      style={{ background: 'none', border: 'none', padding: '6px 12px', cursor: 'pointer', color: primaryColor, fontWeight: '800', fontSize: '1rem' }}
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+                </div>
                 
-                <button 
-                  onClick={() => handleOrder(product.name)}
-                  className="btn-primary" 
-                  style={{ width: '100%', background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`, border: 'none' }}
-                >
-                  <ShoppingCart size={18} /> Order Now
-                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    onClick={() => handleAddToCart(product, idx)}
+                    className="btn-primary" 
+                    style={{ flex: 1, background: `transparent`, border: `2px solid ${primaryColor}`, color: primaryColor }}
+                  >
+                    Add to Cart
+                  </button>
+                  <button 
+                    onClick={() => handleOrder(product, idx)}
+                    disabled={orderLoading === idx}
+                    className="btn-primary" 
+                    style={{ flex: 1, background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`, border: 'none', opacity: orderLoading === idx ? 0.7 : 1 }}
+                  >
+                    {orderLoading === idx ? 'Placing...' : 'Buy Now'}
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -359,6 +605,265 @@ const ShopView = () => {
           © 2026 {shop.shopName}. All rights reserved. SME Multi-Vendor Platform.
         </div>
       </footer>
+      {/* ORDERS MODAL */}
+      {showOrdersModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div className="glass-card animate-fade-in" style={{
+            background: backgroundColor, width: '90%', maxWidth: '600px', 
+            maxHeight: '80vh', overflowY: 'auto', padding: '2rem',
+            position: 'relative', borderRadius: '16px'
+          }}>
+            <button onClick={() => setShowOrdersModal(false)} style={{
+              position: 'absolute', top: '1rem', right: '1rem',
+              background: 'transparent', border: 'none', cursor: 'pointer', color: textColor
+            }}>
+              <X size={24} />
+            </button>
+            <h2 style={{ color: primaryColor, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ClipboardList size={24} /> My Orders at {shop.shopName}
+            </h2>
+            
+            {ordersLoading ? (
+              <p style={{ color: textColor }}>Loading your orders...</p>
+            ) : shopOrders.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {shopOrders.map(order => (
+                  <div key={order.id} style={{ 
+                    border: `1px solid ${primaryColor}44`, padding: '1rem', borderRadius: '8px',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem'
+                  }}>
+                    <div>
+                      <p style={{ margin: 0, fontWeight: '700', color: textColor }}>{order.product_id} (x{order.quantity})</p>
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: textColor, opacity: 0.7 }}>
+                        {new Date(order.created_at).toLocaleDateString()} - Status: <span style={{ fontWeight: 'bold' }}>{order.status}</span>
+                      </p>
+                    </div>
+                    <div style={{ fontWeight: '800', color: primaryColor }}>
+                      LKR {parseFloat(order.total_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: textColor }}>You haven't placed any orders at this shop yet.</p>
+            )}
+
+            {/* View All Orders link */}
+            <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+              <Link 
+                to={`/shop/${id}/orders`} 
+                onClick={() => setShowOrdersModal(false)}
+                style={{ 
+                  textDecoration: 'none', background: primaryColor, color: 'white', 
+                  padding: '10px 24px', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem',
+                  display: 'inline-block', transition: 'opacity 0.2s'
+                }}
+                onMouseOver={e => e.currentTarget.style.opacity = '0.85'}
+                onMouseOut={e => e.currentTarget.style.opacity = '1'}
+              >
+                View Full Order History →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* CART MODAL */}
+      {showCartModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div className="glass-card animate-fade-in" style={{
+            background: backgroundColor, width: '90%', maxWidth: '600px', 
+            maxHeight: '80vh', overflowY: 'auto', padding: '2rem',
+            position: 'relative', borderRadius: '16px'
+          }}>
+            <button onClick={() => setShowCartModal(false)} style={{
+              position: 'absolute', top: '1rem', right: '1rem',
+              background: 'transparent', border: 'none', cursor: 'pointer', color: textColor
+            }}>
+              <X size={24} />
+            </button>
+            <h2 style={{ color: primaryColor, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShoppingCart size={24} /> Cart at {shop.shopName}
+            </h2>
+            
+            {cartItems.filter(item => item.shop_id == id).length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {cartItems.filter(item => item.shop_id == id).map((item, idx) => (
+                  <div key={idx} style={{ 
+                    border: `1px solid ${primaryColor}44`, padding: '1rem', borderRadius: '8px',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem'
+                  }}>
+                    <div>
+                      <p style={{ margin: 0, fontWeight: '700', color: textColor }}>{item.product_id} (x{item.quantity})</p>
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: textColor, opacity: 0.7 }}>
+                        LKR {parseFloat(item.unit_price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })} each
+                      </p>
+                    </div>
+                    <div style={{ fontWeight: '800', color: primaryColor }}>
+                      LKR {(parseFloat(item.unit_price || 0) * item.quantity).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: textColor }}>Your cart for this shop is empty.</p>
+            )}
+
+            {/* Go to Shop Cart link */}
+            <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+              <Link 
+                to={`/shop/${id}/cart`} 
+                onClick={() => setShowCartModal(false)}
+                style={{ 
+                  textDecoration: 'none', background: primaryColor, color: 'white', 
+                  padding: '10px 24px', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem',
+                  display: 'inline-block', transition: 'opacity 0.2s'
+                }}
+                onMouseOver={e => e.currentTarget.style.opacity = '0.85'}
+                onMouseOut={e => e.currentTarget.style.opacity = '1'}
+              >
+                View Shop Cart →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CHECKOUT MODAL */}
+      {showCheckoutModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div className="glass-card animate-fade-in" style={{
+            background: backgroundColor, width: '90%', maxWidth: '500px', 
+            maxHeight: '90vh', overflowY: 'auto', padding: '2rem',
+            position: 'relative', borderRadius: '16px'
+          }}>
+            <button onClick={() => setShowCheckoutModal(false)} style={{
+              position: 'absolute', top: '1rem', right: '1rem',
+              background: 'transparent', border: 'none', cursor: 'pointer', color: textColor
+            }}>
+              <X size={24} />
+            </button>
+            <h2 style={{ color: primaryColor, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Package size={24} /> Complete Your Order
+            </h2>
+            
+            <div style={{ marginBottom: '1.5rem' }}>
+                <p style={{ margin: 0, fontWeight: '700', color: textColor }}>{selectedProductForCheckout?.name}</p>
+                <p style={{ margin: 0, fontSize: '0.9rem', color: textColor, opacity: 0.8 }}>Quantity: {getQuantity(checkoutProductIdx)}</p>
+                <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: primaryColor }}>Total: LKR {(selectedProductForCheckout?.price * getQuantity(checkoutProductIdx)).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+                <button
+                    onClick={() => setDeliveryType('shop_pickup')}
+                    style={{
+                        flex: 1, padding: '10px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer',
+                        background: deliveryType === 'shop_pickup' ? primaryColor : 'transparent',
+                        color: deliveryType === 'shop_pickup' ? 'white' : primaryColor,
+                        border: `2px solid ${primaryColor}`
+                    }}
+                >
+                    Shop Pickup
+                </button>
+                <button
+                    onClick={() => setDeliveryType('home_delivery')}
+                    style={{
+                        flex: 1, padding: '10px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer',
+                        background: deliveryType === 'home_delivery' ? primaryColor : 'transparent',
+                        color: deliveryType === 'home_delivery' ? 'white' : primaryColor,
+                        border: `2px solid ${primaryColor}`
+                    }}
+                >
+                    Home Delivery
+                </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
+                <div>
+                    <label style={{ display: 'block', marginBottom: '4px', color: textColor, fontSize: '0.85rem', fontWeight: '700' }}>Customer Name</label>
+                    <input 
+                        type="text" 
+                        value={deliveryDetails.customer_name} 
+                        onChange={e => setDeliveryDetails({...deliveryDetails, customer_name: e.target.value})}
+                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: `1px solid ${primaryColor}44`, background: 'rgba(255,255,255,0.5)' }} 
+                        placeholder="Enter your name"
+                    />
+                </div>
+                <div>
+                    <label style={{ display: 'block', marginBottom: '4px', color: textColor, fontSize: '0.85rem', fontWeight: '700' }}>Contact Number</label>
+                    <input 
+                        type="text" 
+                        value={deliveryDetails.customer_phone} 
+                        onChange={e => setDeliveryDetails({...deliveryDetails, customer_phone: e.target.value})}
+                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: `1px solid ${primaryColor}44`, background: 'rgba(255,255,255,0.5)' }} 
+                        placeholder="Enter your phone number"
+                    />
+                </div>
+                
+                {deliveryType === 'home_delivery' && (
+                    <>
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '4px', color: textColor, fontSize: '0.85rem', fontWeight: '700' }}>Street Address</label>
+                            <input 
+                                type="text" 
+                                value={deliveryDetails.address_line} 
+                                onChange={e => setDeliveryDetails({...deliveryDetails, address_line: e.target.value})}
+                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: `1px solid ${primaryColor}44`, background: 'rgba(255,255,255,0.5)' }} 
+                                placeholder="123 Main St"
+                            />
+                        </div>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', marginBottom: '4px', color: textColor, fontSize: '0.85rem', fontWeight: '700' }}>City</label>
+                                <input 
+                                    type="text" 
+                                    value={deliveryDetails.city} 
+                                    onChange={e => setDeliveryDetails({...deliveryDetails, city: e.target.value})}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: `1px solid ${primaryColor}44`, background: 'rgba(255,255,255,0.5)' }} 
+                                    placeholder="Colombo"
+                                />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', marginBottom: '4px', color: textColor, fontSize: '0.85rem', fontWeight: '700' }}>Zip Code</label>
+                                <input 
+                                    type="text" 
+                                    value={deliveryDetails.zip_code} 
+                                    onChange={e => setDeliveryDetails({...deliveryDetails, zip_code: e.target.value})}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: `1px solid ${primaryColor}44`, background: 'rgba(255,255,255,0.5)' }} 
+                                    placeholder="00100"
+                                />
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
+
+            <button 
+                onClick={submitOrder}
+                disabled={orderLoading === true}
+                style={{ 
+                    width: '100%', padding: '12px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer',
+                    background: orderLoading === true ? '#ccc' : `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`, 
+                    color: 'white', border: 'none', fontSize: '1rem'
+                }}
+            >
+                {orderLoading === true ? 'Processing...' : 'Confirm Order'}
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

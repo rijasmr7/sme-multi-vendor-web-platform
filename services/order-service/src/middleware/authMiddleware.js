@@ -1,0 +1,56 @@
+const jwt = require('jsonwebtoken');
+const { sendError } = require('../utils/response');
+
+// ---------------------------------------------------------------
+// JWT AUTHENTICATION MIDDLEWARE
+// ---------------------------------------------------------------
+const authenticateToken = (req, res, next) => {
+    // Step 1: Get the Authorization header
+    const authHeader = req.headers['authorization'];
+
+    // Step 2: Extract the token (format: "Bearer <token>")
+    const token = authHeader && authHeader.split(' ')[1];
+
+    // Step 3: If no token was provided, reject the request
+    if (!token) {
+        return sendError(res, 'Access denied. No token provided.', 401);
+    }
+
+    try {
+        // Step 4: Verify the token using our secret key
+        const decoded = jwt.verify(
+            token,
+            process.env.JWT_SECRET || 'super-secret-key-for-beginners'
+        );
+
+        // Step 5: Attach decoded user info to the request object
+        req.user = decoded; // Contains: { id, role, iat, exp }
+
+        // Step 6: Continue to the next middleware / route handler
+        next();
+    } catch (error) {
+        return sendError(res, 'Invalid or expired token.', 403);
+    }
+};
+
+// ---------------------------------------------------------------
+// ROLE-BASED AUTHORIZATION MIDDLEWARE
+// ---------------------------------------------------------------
+const authorizeRole = (...allowedRoles) => {
+    return (req, res, next) => {
+        if (!req.user) {
+            return sendError(res, 'Authentication required.', 401);
+        }
+
+        if (!allowedRoles.includes(req.user.role)) {
+            return sendError(res, 'You do not have permission to access this resource.', 403);
+        }
+
+        next();
+    };
+};
+
+module.exports = {
+    authenticateToken,
+    authorizeRole
+};

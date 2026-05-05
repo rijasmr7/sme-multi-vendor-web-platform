@@ -12,7 +12,12 @@ import {
   Search,
   User,
   Store,
-  ChevronRight
+  ChevronRight,
+  ClipboardList,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Loader2
 } from 'lucide-react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 
@@ -26,6 +31,10 @@ function Dashboard({ primaryColor = '#6366f1' }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedShop, setSelectedShop] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [vendorOrders, setVendorOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [orderFilter, setOrderFilter] = useState('all');
+  const [updatingOrderId, setUpdatingOrderId] = useState(null);
   const productsPerPage = 5;
   const navigate = useNavigate();
   const location = useLocation();
@@ -105,6 +114,57 @@ function Dashboard({ primaryColor = '#6366f1' }) {
     fetchDashboardData();
   }, []);
 
+  // Fetch vendor orders when Orders tab is active
+  useEffect(() => {
+    if (activeTab === 'orders') {
+      fetchVendorOrders();
+    }
+  }, [activeTab, orderFilter]);
+
+  const fetchVendorOrders = async () => {
+    const token = localStorage.getItem('vendorToken');
+    if (!token || token === 'null') return;
+    const vendorId = parseJwtLocal(token)?.id;
+    if (!vendorId) return;
+
+    setOrdersLoading(true);
+    try {
+      let url = `${API_GATEWAY}/orders/vendor/${vendorId}`;
+      if (orderFilter !== 'all') {
+        url += `?status=${orderFilter}`;
+      }
+      const res = await axios.get(url, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) {
+        setVendorOrders(res.data.data || []);
+      }
+    } catch (err) {
+      console.error('Vendor Orders Fetch Error:', err);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    const token = localStorage.getItem('vendorToken');
+    if (!token) return;
+
+    setUpdatingOrderId(orderId);
+    try {
+      await axios.put(`${API_GATEWAY}/orders/${orderId}/status`, { status: newStatus }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      // Refresh orders after update
+      fetchVendorOrders();
+    } catch (err) {
+      console.error('Order Status Update Error:', err);
+      alert(err.response?.data?.message || 'Failed to update order status');
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
+
   const handleNavClick = (tabId) => {
     setActiveTab(tabId);
     if (tabId !== 'shop-dashboard') {
@@ -144,6 +204,7 @@ function Dashboard({ primaryColor = '#6366f1' }) {
           <NavItem icon={<LayoutDashboard size={18} />} label="Overview" active={activeTab === 'overview'} onClick={() => handleNavClick('overview')} primaryColor={primaryColor} />
           <NavItem icon={<Store size={18} />} label="My Business" active={activeTab === 'my-business' || activeTab === 'shop-dashboard'} onClick={() => handleNavClick('my-business')} primaryColor={primaryColor} />
           <NavItem icon={<Package size={18} />} label="My Products" active={activeTab === 'products'} onClick={() => handleNavClick('products')} primaryColor={primaryColor} />
+          <NavItem icon={<ClipboardList size={18} />} label="Orders" active={activeTab === 'orders'} onClick={() => handleNavClick('orders')} primaryColor={primaryColor} />
           <NavItem icon={<Layers size={18} />} label="Categories" active={activeTab === 'categories'} onClick={() => handleNavClick('categories')} primaryColor={primaryColor} />
           <NavItem icon={<TrendingUp size={18} />} label="Analytics" active={activeTab === 'analytics'} onClick={() => handleNavClick('analytics')} primaryColor={primaryColor} />
           <div style={{ margin: '1.5rem 0.75rem', height: '1px', background: '#e2e8f0' }}></div>
@@ -186,10 +247,10 @@ function Dashboard({ primaryColor = '#6366f1' }) {
         }}>
           <div>
             <h1 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#1e293b', margin: 0 }}>
-              {activeTab === 'overview' ? 'Merchant Dashboard' : activeTab === 'my-business' ? 'My Business Shops' : selectedShop ? selectedShop.shop_name : 'Dashboard'}
+              {activeTab === 'overview' ? 'Merchant Dashboard' : activeTab === 'my-business' ? 'My Business Shops' : activeTab === 'orders' ? 'Order Management' : selectedShop ? selectedShop.shop_name : 'Dashboard'}
             </h1>
             <p style={{ color: '#64748b', fontSize: '0.9rem' }}>
-              {activeTab === 'overview' ? "Welcome back! Here's what's happening today." : activeTab === 'my-business' ? "Select a shop to view its specific dashboard." : "Real-time insights for your generated shop."}
+              {activeTab === 'overview' ? "Welcome back! Here's what's happening today." : activeTab === 'my-business' ? "Select a shop to view its specific dashboard." : activeTab === 'orders' ? 'View and manage incoming customer orders.' : "Real-time insights for your generated shop."}
             </p>
           </div>
 
@@ -529,6 +590,185 @@ function Dashboard({ primaryColor = '#6366f1' }) {
         )}
 
       </main>
+
+      {/* ORDERS TAB CONTENT - Rendered outside main to use full width */}
+      {activeTab === 'orders' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '2rem', marginTop: '-2rem' }}>
+          {/* Filter Row */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
+            {['all', 'pending', 'confirmed', 'completed', 'cancelled'].map(status => {
+              const statusIcons = { pending: <Clock size={14} />, confirmed: <CheckCircle size={14} />, completed: <CheckCircle size={14} />, cancelled: <XCircle size={14} /> };
+              const isActive = orderFilter === status;
+              return (
+                <button
+                  key={status}
+                  onClick={() => setOrderFilter(status)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '100px',
+                    border: isActive ? `2px solid ${primaryColor}` : '1px solid #e2e8f0',
+                    background: isActive ? primaryColor : 'white',
+                    color: isActive ? 'white' : '#64748b',
+                    fontWeight: '700',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontFamily: 'inherit',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {status === 'all' ? 'All' : statusIcons[status]}
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Loading */}
+          {ordersLoading && (
+            <div style={{ textAlign: 'center', padding: '4rem' }}>
+              <Loader2 size={32} style={{ color: primaryColor, animation: 'spin 1s linear infinite' }} />
+              <p style={{ color: '#64748b', marginTop: '1rem' }}>Loading orders...</p>
+              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+          )}
+
+          {/* Orders Table */}
+          {!ordersLoading && (
+            <section style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+              <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ fontWeight: '700', color: '#1e293b' }}>Incoming Orders ({vendorOrders.length})</h3>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc' }}>
+                      <th style={tableHeaderStyle}>Order ID</th>
+                      <th style={tableHeaderStyle}>Product</th>
+                      <th style={tableHeaderStyle}>Qty</th>
+                      <th style={tableHeaderStyle}>Unit Price</th>
+                      <th style={tableHeaderStyle}>Total</th>
+                      <th style={tableHeaderStyle}>Status</th>
+                      <th style={tableHeaderStyle}>Date</th>
+                      <th style={tableHeaderStyle}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vendorOrders.length > 0 ? vendorOrders.map((order) => {
+                      const statusColors = {
+                        pending:   { bg: '#fef3c7', color: '#f59e0b' },
+                        confirmed: { bg: '#dbeafe', color: '#3b82f6' },
+                        completed: { bg: '#dcfce7', color: '#22c55e' },
+                        cancelled: { bg: '#fee2e2', color: '#ef4444' }
+                      };
+                      const sc = statusColors[order.status] || statusColors.pending;
+                      return (
+                        <tr key={order.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={tableCellStyle}>
+                            <span style={{ fontWeight: '700', color: primaryColor }}>#{order.id}</span>
+                          </td>
+                          <td style={tableCellStyle}>{order.product_id}</td>
+                          <td style={tableCellStyle}>{order.quantity}</td>
+                          <td style={{ ...tableCellStyle, fontWeight: '600' }}>LKR {parseFloat(order.unit_price).toFixed(2)}</td>
+                          <td style={{ ...tableCellStyle, fontWeight: '700' }}>LKR {parseFloat(order.total_price).toFixed(2)}</td>
+                          <td style={tableCellStyle}>
+                            <span style={{
+                              padding: '4px 12px',
+                              borderRadius: '20px',
+                              fontSize: '0.75rem',
+                              fontWeight: '700',
+                              background: sc.bg,
+                              color: sc.color
+                            }}>
+                              {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                            </span>
+                          </td>
+                          <td style={{ ...tableCellStyle, fontSize: '0.8rem', color: '#64748b' }}>
+                            {new Date(order.created_at).toLocaleDateString('en-LK', { month: 'short', day: 'numeric' })}
+                          </td>
+                          <td style={tableCellStyle}>
+                            {(order.status === 'pending' || order.status === 'confirmed') && (
+                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                {order.status === 'pending' && (
+                                  <button
+                                    onClick={() => handleUpdateOrderStatus(order.id, 'confirmed')}
+                                    disabled={updatingOrderId === order.id}
+                                    style={{
+                                      padding: '4px 10px',
+                                      borderRadius: '6px',
+                                      border: 'none',
+                                      background: '#dbeafe',
+                                      color: '#3b82f6',
+                                      fontWeight: '700',
+                                      fontSize: '0.75rem',
+                                      cursor: 'pointer',
+                                      fontFamily: 'inherit'
+                                    }}
+                                  >
+                                    Confirm
+                                  </button>
+                                )}
+                                {order.status === 'confirmed' && (
+                                  <button
+                                    onClick={() => handleUpdateOrderStatus(order.id, 'completed')}
+                                    disabled={updatingOrderId === order.id}
+                                    style={{
+                                      padding: '4px 10px',
+                                      borderRadius: '6px',
+                                      border: 'none',
+                                      background: '#dcfce7',
+                                      color: '#22c55e',
+                                      fontWeight: '700',
+                                      fontSize: '0.75rem',
+                                      cursor: 'pointer',
+                                      fontFamily: 'inherit'
+                                    }}
+                                  >
+                                    Complete
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleUpdateOrderStatus(order.id, 'cancelled')}
+                                  disabled={updatingOrderId === order.id}
+                                  style={{
+                                    padding: '4px 10px',
+                                    borderRadius: '6px',
+                                    border: 'none',
+                                    background: '#fee2e2',
+                                    color: '#ef4444',
+                                    fontWeight: '700',
+                                    fontSize: '0.75rem',
+                                    cursor: 'pointer',
+                                    fontFamily: 'inherit'
+                                  }}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            )}
+                            {(order.status === 'completed' || order.status === 'cancelled') && (
+                              <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    }) : (
+                      <tr>
+                        <td colSpan="8" style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>
+                          <ClipboardList size={40} style={{ color: '#cbd5e1', marginBottom: '0.5rem' }} />
+                          <p style={{ fontWeight: '600' }}>{orderFilter === 'all' ? 'No orders received yet.' : `No ${orderFilter} orders.`}</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </div>
+      )}
     </div>
   );
 }

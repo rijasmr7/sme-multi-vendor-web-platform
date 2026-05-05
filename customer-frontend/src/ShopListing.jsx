@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { Store, ArrowRight, Sparkles, ShoppingBag } from 'lucide-react';
+import { Store, ArrowRight, Sparkles, ShoppingBag, ClipboardList, ShoppingCart } from 'lucide-react';
 
 const GATEWAY_URL = 'http://localhost:5000';
 
@@ -78,6 +78,32 @@ const ShopListing = () => {
                 <p style={{ margin: 0, fontSize: '0.8rem', color: '#92400e', fontWeight: '600' }}>Welcome back,</p>
                 <p style={{ margin: 0, fontSize: '0.95rem', color: '#451a03', fontWeight: '800' }}>{user.name}</p>
               </div>
+              
+              <Link to="/cart" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: '#451a03', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s', padding: '8px 12px', borderRadius: '10px' }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.background = '#fef3c7';
+                  e.currentTarget.style.color = '#f97316';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#451a03';
+                }}
+              >
+                <ShoppingCart size={18} /> Cart
+              </Link>
+
+              <Link to="/orders" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: '#451a03', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s', padding: '8px 12px', borderRadius: '10px' }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.background = '#fef3c7';
+                  e.currentTarget.style.color = '#f97316';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#451a03';
+                }}
+              >
+                <ClipboardList size={18} /> My Orders
+              </Link>
               <button 
                 onClick={handleLogout}
                 style={{ 

@@ -249,26 +249,148 @@ app.get('/public/shops/:id', async (req, res) => {
 // ORDER SERVICE ROUTES
 // =============================================================
 
-// POST /orders -> Forward to order-service
+// 1. POST /orders -> Create new order
 app.post('/orders', async (req, res) => {
     try {
         console.log(`>>> [Gateway] Forwarding POST /orders`);
-        const response = await axios.post(`${SERVICES.order}/orders`, req.body);
+        const response = await axios.post(`${SERVICES.order}/orders`, req.body, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
         res.status(response.status).json(response.data);
     } catch (error) {
         handleError(res, error, 'Order Service');
     }
 });
 
-// GET /orders/:customerId -> Forward to order-service
-app.get('/orders/:customerId', async (req, res) => {
+// 2. PUT /orders/:id/status -> Update order status
+app.put('/orders/:id/status', async (req, res) => {
     try {
-        const customerId = req.params.customerId;
-        console.log(`>>> [Gateway] Forwarding GET /orders/${customerId}`);
-        const response = await axios.get(`${SERVICES.order}/orders/${customerId}`);
+        const id = req.params.id;
+        console.log(`>>> [Gateway] Forwarding PUT /orders/${id}/status`);
+        const response = await axios.put(`${SERVICES.order}/orders/${id}/status`, req.body, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
         res.status(response.status).json(response.data);
     } catch (error) {
         handleError(res, error, 'Order Service');
+    }
+});
+
+// 3. GET /orders/customer/:id -> Get orders for a specific customer
+app.get('/orders/customer/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+        console.log(`>>> [Gateway] Forwarding GET /orders/customer/${id}`);
+        // Pass query parameters (status, date) along to the service
+        const response = await axios.get(`${SERVICES.order}/orders/customer/${id}`, {
+            headers: { Authorization: req.headers['authorization'] },
+            params: req.query
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Order Service');
+    }
+});
+
+// GET /orders/customer/:id/address -> Get delivery address
+app.get('/orders/customer/:id/address', async (req, res) => {
+    try {
+        const id = req.params.id;
+        console.log(`>>> [Gateway] Forwarding GET /orders/customer/${id}/address`);
+        const response = await axios.get(`${SERVICES.order}/orders/customer/${id}/address`, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Order Service');
+    }
+});
+
+// 4. GET /orders/vendor/:id -> Get orders for a specific vendor
+app.get('/orders/vendor/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+        console.log(`>>> [Gateway] Forwarding GET /orders/vendor/${id}`);
+        const response = await axios.get(`${SERVICES.order}/orders/vendor/${id}`, {
+            headers: { Authorization: req.headers['authorization'] },
+            params: req.query
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Order Service');
+    }
+});
+
+// =============================================================
+// CART ROUTES (Handled by Order Service)
+// =============================================================
+
+// 1. POST /cart -> Add item to cart
+app.post('/cart', async (req, res) => {
+    try {
+        console.log(`>>> [Gateway] Forwarding POST /cart`);
+        const response = await axios.post(`${SERVICES.order}/cart`, req.body, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Order Service (Cart)');
+    }
+});
+
+// 2. GET /cart/customer/:id -> Get customer cart
+app.get('/cart/customer/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+        console.log(`>>> [Gateway] Forwarding GET /cart/customer/${id}`);
+        const response = await axios.get(`${SERVICES.order}/cart/customer/${id}`, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Order Service (Cart)');
+    }
+});
+
+// 3. PUT /cart/item/:itemId -> Update cart item quantity
+app.put('/cart/item/:itemId', async (req, res) => {
+    try {
+        const itemId = req.params.itemId;
+        console.log(`>>> [Gateway] Forwarding PUT /cart/item/${itemId}`);
+        const response = await axios.put(`${SERVICES.order}/cart/item/${itemId}`, req.body, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Order Service (Cart)');
+    }
+});
+
+// 4. DELETE /cart/item/:itemId -> Remove item from cart
+app.delete('/cart/item/:itemId', async (req, res) => {
+    try {
+        const itemId = req.params.itemId;
+        console.log(`>>> [Gateway] Forwarding DELETE /cart/item/${itemId}`);
+        const response = await axios.delete(`${SERVICES.order}/cart/item/${itemId}`, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Order Service (Cart)');
+    }
+});
+
+// 5. DELETE /cart/customer/:id -> Clear customer cart
+app.delete('/cart/customer/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+        console.log(`>>> [Gateway] Forwarding DELETE /cart/customer/${id}`);
+        const response = await axios.delete(`${SERVICES.order}/cart/customer/${id}`, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Order Service (Cart)');
     }
 });
 
