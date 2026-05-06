@@ -140,6 +140,35 @@ app.put('/products/:id', async (req, res) => {
     }
 });
 
+// Internal URL for the Python Recommender Service
+const RECOMMENDER_SERVICE_URL = process.env.RECOMMENDER_SERVICE_URL || 'http://recommender:8008';
+
+// ------------------------------------------------------------------
+// AI RECOMMENDATION INTEGRATION
+// ------------------------------------------------------------------
+app.get('/recommendations/:userId/:productId', async (req, res) => {
+    const { userId, productId } = req.params;
+
+    try {
+        console.log(`[GET] Proxying recommendation request for User:${userId} Product:${productId}`);
+        
+        // Call the Python FastAPI service
+        const response = await axios.get(`${RECOMMENDER_SERVICE_URL}/recommend/final`, {
+            params: {
+                user_id: userId,
+                product_id: productId
+            }
+        });
+
+        // Return the hybrid results to the frontend
+        sendSuccess(res, response.data);
+    } catch (error) {
+        console.error('AI Recommender Error:', error.message);
+        const status = error.response?.status || 500;
+        sendError(res, 'AI Recommender service is currently unavailable', status);
+    }
+});
+
 app.delete('/products/:id', async (req, res) => {
     const { id } = req.params;
     try {

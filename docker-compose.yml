@@ -13,12 +13,14 @@ services:
       - ANALYTICS_SERVICE_URL=http://analytics:5003
       - USER_SERVICE_URL=http://user:5004
       - ORDER_SERVICE_URL=http://order:5005
+      - RECOMMENDER_SERVICE_URL=http://recommender:8008
     depends_on:
       - product
       - ai
       - analytics
       - user
       - order
+      - recommender
 
   product:
     build: ./services/product-service
@@ -82,6 +84,18 @@ services:
     volumes:
       - ./services/order-service:/app
       - /app/node_modules
+    depends_on:
+      - postgres
+
+  recommender:
+    build: ./services/ai-recommender-service
+    container_name: sme_recommender_service
+    ports:
+      - "8008:8008"
+    env_file:
+      - ./services/ai-recommender-service/.env
+    volumes:
+      - ./services/ai-recommender-service:/app
     depends_on:
       - postgres
 

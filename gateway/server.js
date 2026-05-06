@@ -17,7 +17,8 @@ const SERVICES = {
     product: process.env.PRODUCT_SERVICE_URL || 'http://localhost:5001',
     ai: process.env.AI_SERVICE_URL || 'http://localhost:5002',
     analytics: process.env.ANALYTICS_SERVICE_URL || 'http://localhost:5003',
-    order: process.env.ORDER_SERVICE_URL || 'http://localhost:5005'
+    order: process.env.ORDER_SERVICE_URL || 'http://localhost:5005',
+    recommender: process.env.RECOMMENDER_SERVICE_URL || 'http://localhost:8008'
 };
 
 // -------------------------------------------------------------
@@ -242,6 +243,18 @@ app.get('/public/shops/:id', async (req, res) => {
         res.status(response.status).json(response.data);
     } catch (error) {
         handleError(res, error, 'AI Service');
+    }
+});
+
+// GET /recommend/:id -> Forward to Recommender service
+app.get('/recommend/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+        console.log(`>>> [Gateway] Forwarding GET /recommend/${id}`);
+        const response = await axios.get(`${SERVICES.recommender}/recommend/${id}`);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Recommender Service');
     }
 });
 
