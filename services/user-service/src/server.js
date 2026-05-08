@@ -28,6 +28,7 @@ pool.query(createTableQuery)
         try {
             await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS shop_name TEXT DEFAULT 'My Shop'");
             await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'vendor'");
+            await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS city TEXT DEFAULT 'Unknown'");
         } catch (err) {
             // Silently ignore migration issues
         }

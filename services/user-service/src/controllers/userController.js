@@ -51,7 +51,7 @@ const register = async (req, res) => {
 // ---------------------------------------------------------------
 // Same as vendor register, but forces role = "customer"
 const customerRegister = async (req, res) => {
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, city } = req.body;
 
     // 1. Validation
     if (!name) {
@@ -83,6 +83,7 @@ const customerRegister = async (req, res) => {
             email,
             phone,
             password,
+            city: city || 'Unknown',
             shop_name: 'Customer Account',
             role: 'customer'
         });
@@ -207,6 +208,34 @@ const getUser = async (req, res) => {
 };
 
 // ---------------------------------------------------------------
+// INTERNAL: GET USER BY ID WITHOUT AUTH
+// ---------------------------------------------------------------
+const getInternalUser = async (req, res) => {
+    const { id } = req.params;
+    if (isNaN(id)) return sendError(res, 'Invalid ID format', 400);
+
+    try {
+        const user = await userService.findById(id);
+        if (!user) return sendError(res, 'User not found', 404);
+        sendSuccess(res, user);
+    } catch (error) {
+        sendError(res, 'Failed to fetch user');
+    }
+};
+
+// ---------------------------------------------------------------
+// INTERNAL: GET ALL USERS WITHOUT AUTH
+// ---------------------------------------------------------------
+const getAllUsersInternal = async (req, res) => {
+    try {
+        const users = await userService.findAllUsers();
+        sendSuccess(res, users);
+    } catch (error) {
+        sendError(res, 'Failed to fetch all users');
+    }
+};
+
+// ---------------------------------------------------------------
 // GET CURRENT USER PROFILE (Protected route)
 // ---------------------------------------------------------------
 // Uses req.user (set by authMiddleware) to return the logged-in user's info
@@ -226,5 +255,7 @@ module.exports = {
     getUser,
     customerRegister,
     customerLogin,
-    getProfile
+    getProfile,
+    getInternalUser,
+    getAllUsersInternal
 };

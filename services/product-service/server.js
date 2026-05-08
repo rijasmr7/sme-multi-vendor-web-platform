@@ -152,15 +152,15 @@ app.get('/recommendations/:userId/:productId', async (req, res) => {
     try {
         console.log(`[GET] Proxying recommendation request for User:${userId} Product:${productId}`);
         
-        // Call the Python FastAPI service
-        const response = await axios.get(`${RECOMMENDER_SERVICE_URL}/recommend/final`, {
+        // Call the new Python FastAPI service with AI Explanations
+        const response = await axios.get(`${RECOMMENDER_SERVICE_URL}/recommend/explain`, {
             params: {
                 user_id: userId,
                 product_id: productId
             }
         });
 
-        // Return the hybrid results to the frontend
+        // Return the explained hybrid results to the frontend
         sendSuccess(res, response.data);
     } catch (error) {
         console.error('AI Recommender Error:', error.message);

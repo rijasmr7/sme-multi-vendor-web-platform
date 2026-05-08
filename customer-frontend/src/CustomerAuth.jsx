@@ -26,7 +26,8 @@ function CustomerAuth({ onLoginSuccess, onBack }) {
         name: '',
         email: '',
         phone: '',
-        password: ''
+        password: '',
+        city: ''
     });
 
     // ---------------------------------------------------------------
@@ -45,6 +46,9 @@ function CustomerAuth({ onLoginSuccess, onBack }) {
     const validate = () => {
         if (!isLogin && !formData.name.trim()) {
             return 'Name is required';
+        }
+        if (!isLogin && !formData.city.trim()) {
+            return 'City is required for localized recommendations';
         }
         if (!formData.email.trim() && !formData.phone.trim()) {
             return 'At least email or phone is required';
@@ -103,7 +107,8 @@ function CustomerAuth({ onLoginSuccess, onBack }) {
                 // ----- REGISTER -----
                 const payload = {
                     name: formData.name.trim(),
-                    password: formData.password
+                    password: formData.password,
+                    city: formData.city.trim()
                 };
                 if (formData.email.trim()) payload.email = formData.email.trim();
                 if (formData.phone.trim()) payload.phone = formData.phone.trim();
@@ -115,7 +120,7 @@ function CustomerAuth({ onLoginSuccess, onBack }) {
                 // Switch to login form after successful registration
                 setTimeout(() => {
                     setIsLogin(true);
-                    setFormData(prev => ({ ...prev, name: '', password: '' }));
+                    setFormData(prev => ({ ...prev, name: '', password: '', city: '' }));
                     setMessage(null);
                 }, 2000);
             }
@@ -134,7 +139,7 @@ function CustomerAuth({ onLoginSuccess, onBack }) {
     const toggleMode = () => {
         setIsLogin(!isLogin);
         setMessage(null);
-        setFormData({ name: '', email: '', phone: '', password: '' });
+        setFormData({ name: '', email: '', phone: '', password: '', city: '' });
     };
 
     // ---------------------------------------------------------------
@@ -188,24 +193,47 @@ function CustomerAuth({ onLoginSuccess, onBack }) {
 
                     {/* Name Field (Register Only) */}
                     {!isLogin && (
-                        <div className="auth-field animate-fade-in">
-                            <label htmlFor="auth-name" className="auth-label">
-                                Full Name
-                            </label>
-                            <div className="auth-input-wrapper">
-                                <User size={18} className="auth-input-icon" />
-                                <input
-                                    id="auth-name"
-                                    type="text"
-                                    name="name"
-                                    className="auth-input"
-                                    placeholder="Enter your full name"
-                                    value={formData.name}
-                                    onChange={handleChange}
-                                    autoComplete="name"
-                                />
+                        <>
+                            <div className="auth-field animate-fade-in">
+                                <label htmlFor="auth-name" className="auth-label">
+                                    Full Name
+                                </label>
+                                <div className="auth-input-wrapper">
+                                    <User size={18} className="auth-input-icon" />
+                                    <input
+                                        id="auth-name"
+                                        type="text"
+                                        name="name"
+                                        className="auth-input"
+                                        placeholder="Enter your full name"
+                                        value={formData.name}
+                                        onChange={handleChange}
+                                        autoComplete="name"
+                                    />
+                                </div>
                             </div>
-                        </div>
+
+                            {/* City Field (Register Only) */}
+                            <div className="auth-field animate-fade-in">
+                                <label htmlFor="auth-city" className="auth-label">
+                                    City
+                                    <span className="auth-optional">(helps us recommend local items)</span>
+                                </label>
+                                <div className="auth-input-wrapper">
+                                    <ShoppingBag size={18} className="auth-input-icon" />
+                                    <input
+                                        id="auth-city"
+                                        type="text"
+                                        name="city"
+                                        className="auth-input"
+                                        placeholder="Enter your city"
+                                        value={formData.city}
+                                        onChange={handleChange}
+                                        autoComplete="address-level2"
+                                    />
+                                </div>
+                            </div>
+                        </>
                     )}
 
                     {/* Email Field */}

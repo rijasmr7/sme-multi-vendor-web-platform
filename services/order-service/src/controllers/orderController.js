@@ -125,10 +125,26 @@ const getDeliveryAddress = async (req, res) => {
     }
 };
 
+const getAllOrdersInternal = async (req, res) => {
+    try {
+        const pool = require('../config/db');
+        const query = `
+            SELECT customer_id as user_id, product_id 
+            FROM orders
+        `;
+        const { rows } = await pool.query(query);
+        sendSuccess(res, rows, 200);
+    } catch (error) {
+        console.error('Fetch Internal Orders Error:', error.message);
+        sendError(res, 'Failed to fetch all orders', 500);
+    }
+};
+
 module.exports = {
     placeOrder,
     updateStatus,
     getCustomerOrders,
     getVendorOrders,
-    getDeliveryAddress
+    getDeliveryAddress,
+    getAllOrdersInternal
 };

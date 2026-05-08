@@ -149,6 +149,18 @@ app.delete('/products/:id', async (req, res) => {
     }
 });
 
+// 8. GET /products/recommendations/:userId/:productId -> Forward to product-service
+app.get('/products/recommendations/:userId/:productId', async (req, res) => {
+    try {
+        const { userId, productId } = req.params;
+        console.log(`>>> [Gateway] Forwarding GET /products/recommendations/${userId}/${productId}`);
+        const response = await axios.get(`${SERVICES.product}/recommendations/${userId}/${productId}`);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Product Service');
+    }
+});
+
 // =============================================================
 // OTHER SERVICES (AI & Analytics)
 // =============================================================

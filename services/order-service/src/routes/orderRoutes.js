@@ -27,6 +27,13 @@ router.get(
     orderController.getCustomerOrders
 );
 
+// INTERNAL: GET ALL ORDERS FOR AI SVD
+router.get(
+    '/internal/all',
+    orderController.getAllOrdersInternal
+);
+
+
 // GET CUSTOMER DELIVERY ADDRESS
 router.get(
     '/customer/:id/address',

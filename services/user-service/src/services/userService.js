@@ -28,9 +28,18 @@ const findByEmailOrPhone = async (email, phone) => {
 // FIND USER BY ID
 // ---------------------------------------------------------------
 const findById = async (id) => {
-    const query = `SELECT id, name, email, phone, shop_name, role FROM users WHERE id = $1;`;
+    const query = `SELECT id, name, email, phone, shop_name, role, city FROM users WHERE id = $1;`;
     const { rows } = await pool.query(query, [id]);
     return rows[0];
+};
+
+// ---------------------------------------------------------------
+// FIND ALL USERS (For AI Recommendations)
+// ---------------------------------------------------------------
+const findAllUsers = async () => {
+    const query = `SELECT id, city FROM users;`;
+    const { rows } = await pool.query(query);
+    return rows;
 };
 
 // ---------------------------------------------------------------
@@ -39,7 +48,7 @@ const findById = async (id) => {
 // - Hashes the password before saving to the database
 // - Returns the new user WITHOUT the password
 const createUser = async (userData) => {
-    const { name, email, phone, shop_name, password, role } = userData;
+    const { name, email, phone, shop_name, password, role, city } = userData;
 
     // Hash the password using bcrypt (10 salt rounds)
     // This converts "myPassword123" → "$2b$10$..." (irreversible hash)
@@ -47,9 +56,9 @@ const createUser = async (userData) => {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     const query = `
-        INSERT INTO users (name, email, phone, shop_name, password, role)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id, name, email, phone, shop_name, role;
+        INSERT INTO users (name, email, phone, shop_name, password, role, city)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id, name, email, phone, shop_name, role, city;
     `;
     const { rows } = await pool.query(query, [
         name,
@@ -57,7 +66,8 @@ const createUser = async (userData) => {
         phone || null,
         shop_name || 'My Shop',
         hashedPassword,  // Store the HASHED password, never the plain text
-        role || 'vendor'
+        role || 'vendor',
+        city || 'Unknown'
     ]);
     return rows[0];
 };
@@ -75,5 +85,6 @@ module.exports = {
     findByEmailOrPhone,
     findById,
     createUser,
-    verifyPassword
+    verifyPassword,
+    findAllUsers
 };

@@ -2,270 +2,382 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import numpy as np
-import os
 import json
-from sentence_transformers import SentenceTransformer, util
-import google.generativeai as genai
+import os
+import re
+from google import genai
 from dotenv import load_dotenv
-import uvicorn
 
-# Load environment variables
+# Import our research modules
+from services.rag_service import RAGService
+from services.svd_service import SVDService
+from services.hybrid_engine import HybridEngine
+from services.evaluation_service import EvaluationService
+import urllib.request
+
 load_dotenv()
 
-# Initialize FastAPI App
-app = FastAPI(
-    title="Hybrid Semantic Recommender",
-    description="Microservice using BERT embeddings and Gemini AI refinement",
-    version="2.0.0"
-)
-
-# Enable CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app = FastAPI(title="Research AI Recommender", version="3.1.0")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # -------------------------------------------------------------
-# STEP 1: CONFIGURE GEMINI
+# 1. INITIALIZE SERVICES
 # -------------------------------------------------------------
+rag = RAGService()
+svd = SVDService()
+hybrid = HybridEngine(rag, svd)
+evaluator = EvaluationService()
+
+# Configure Gemini (MODERN SDK)
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+client = None
+
 if GEMINI_KEY:
-    genai.configure(api_key=GEMINI_KEY)
-    # Using 'gemini-1.5-flash' which is the latest stable model
-    model_gemini = genai.GenerativeModel('gemini-1.5-flash')
+    print("Gemini: API Key found. Initializing Modern SDK...")
+    try:
+        client = genai.Client(api_key=GEMINI_KEY)
+        print("Gemini: Client initialized successfully.")
+    except Exception as e:
+        print(f"Gemini: Initialization failed: {str(e)}")
 else:
-    print("WARNING: GEMINI_API_KEY not found in environment variables.")
+    print("Gemini: CRITICAL ERROR - GEMINI_API_KEY not found!")
 
 # -------------------------------------------------------------
-# STEP 2: LOAD SEMANTIC MODEL (BERT-based)
-# -------------------------------------------------------------
-# This model converts sentences into "dense vectors" that capture meaning
-print("Loading SentenceTransformer model...")
-semantic_model = SentenceTransformer('all-MiniLM-L6-v2')
-
-# -------------------------------------------------------------
-# STEP 3: PREPARE DATA
+# 2. DATA LOAD (MOCK DATABASE)
 # -------------------------------------------------------------
 products = [
-    {"id": 1, "name": "Organic Apple", "description": "Fresh organic red apple from local farms", "category": "fruit"},
-    {"id": 2, "name": "Banana", "description": "Sweet yellow banana rich in potassium", "category": "fruit"},
-    {"id": 3, "name": "Whole Milk", "description": "Fresh dairy milk 1 liter", "category": "dairy"},
-    {"id": 4, "name": "Cheddar Cheese", "description": "Aged cheddar cheese block", "category": "dairy"},
-    {"id": 5, "name": "Brown Bread", "description": "Healthy whole wheat brown bread", "category": "bakery"},
-    {"id": 6, "name": "Chocolate Cookies", "description": "Crunchy cookies with dark chocolate chips", "category": "bakery"},
-    {"id": 7, "name": "Green Tea", "description": "Organic green tea leaves with antioxidants", "category": "beverage"},
-    {"id": 8, "name": "Orange Juice", "description": "100% pure squeezed orange juice", "category": "beverage"},
-    {"id": 9, "name": "Greek Yogurt", "description": "Creamy protein-rich greek yogurt", "category": "dairy"},
-    {"id": 10, "name": "Sourdough Bread", "description": "Traditional fermented sourdough bread", "category": "bakery"},
+    {"id": 1, "name": "Organic Apple", "description": "Fresh organic red apple rich in Vitamin C", "category": "fruit", "metadata": "Usage: Snack. Benefits: High fiber."},
+    {"id": 2, "name": "Banana", "description": "Sweet yellow banana rich in potassium", "category": "fruit", "metadata": "Usage: Energy boost. Benefits: Potassium."},
+    {"id": 3, "name": "Whole Milk", "description": "Fresh dairy milk 1 liter", "category": "dairy", "metadata": "Usage: Breakfast. Benefits: Calcium."},
+    {"id": 4, "name": "Cheddar Cheese", "description": "Aged cheddar cheese block", "category": "dairy", "metadata": "Usage: Cooking. Benefits: Protein."},
+    {"id": 5, "name": "Brown Bread", "description": "Healthy whole wheat brown bread", "category": "bakery", "metadata": "Usage: Toasts. Benefits: Whole grain."},
+    {"id": 6, "name": "Chocolate Cookies", "description": "Crunchy cookies with dark chocolate", "category": "bakery", "metadata": "Usage: Dessert. Benefits: Happiness."},
+    {"id": 7, "name": "Green Tea", "description": "Organic green tea with antioxidants", "category": "beverage", "metadata": "Usage: Relaxing. Benefits: Metabolism."},
+    {"id": 8, "name": "Orange Juice", "description": "100% pure squeezed orange juice", "category": "beverage", "metadata": "Usage: Refreshment. Benefits: Vitamin C."},
+    {"id": 9, "name": "Greek Yogurt", "description": "Creamy protein-rich greek yogurt", "category": "dairy", "metadata": "Usage: Healthy meal. Benefits: Probiotics."},
+    {"id": 10, "name": "Sourdough Bread", "description": "Traditional fermented sourdough", "category": "bakery", "metadata": "Usage: Sandwich. Benefits: Digestion."},
 ]
 
-df = pd.DataFrame(products)
-# Sample Purchase History for Collaborative Filtering
 purchase_history = [
-    # User 1 (Target)
     {"user_id": 1, "product_id": 1}, {"user_id": 1, "product_id": 2},
-    # User 2 (Similar to User 1)
-    {"user_id": 2, "product_id": 1}, {"user_id": 2, "product_id": 2}, {"user_id": 2, "product_id": 3}, {"user_id": 2, "product_id": 5},
-    # User 3 (Similar to User 1)
-    {"user_id": 3, "product_id": 2}, {"user_id": 3, "product_id": 3}, {"user_id": 3, "product_id": 4},
-    # User 4 (Tea Enthusiast)
-    {"user_id": 4, "product_id": 7}, {"user_id": 4, "product_id": 1},
-    # User 5 (Variety shopper)
-    {"user_id": 5, "product_id": 1}, {"user_id": 5, "product_id": 3}, {"user_id": 5, "product_id": 8}, {"user_id": 5, "product_id": 9}, {"user_id": 5, "product_id": 10},
-    # User 6 (Bakery Fan)
-    {"user_id": 6, "product_id": 5}, {"user_id": 6, "product_id": 10}, {"user_id": 6, "product_id": 6},
+    {"user_id": 2, "product_id": 1}, {"user_id": 2, "product_id": 3}, {"user_id": 2, "product_id": 9},
+    {"user_id": 3, "product_id": 5}, {"user_id": 3, "product_id": 10},
+    {"user_id": 4, "product_id": 7}, {"user_id": 4, "product_id": 8},
 ]
 
-# Combine text for embeddings
-df['combined_features'] = df['name'] + " " + df['description'] + " " + df['category']
+df_products = pd.DataFrame(products)
+
+df_products = pd.DataFrame(products)
+
+is_using_mock_data = True
+global_real_orders = []
+global_valid_history = []
+
+def fetch_user_city(user_id):
+    try:
+        req = urllib.request.Request(f"http://user:5004/internal/{user_id}")
+        with urllib.request.urlopen(req) as response:
+            res = json.loads(response.read().decode())
+            if res.get("success") and res.get("data"):
+                return res["data"].get("city", "Unknown")
+    except Exception as e:
+        print(f"Failed to fetch user city: {e}")
+    return "Unknown"
+
+def fetch_all_users():
+    try:
+        req = urllib.request.Request("http://user:5004/internal-bulk/users")
+        with urllib.request.urlopen(req) as response:
+            res = json.loads(response.read().decode())
+            if res.get("success") and res.get("data"):
+                return res["data"]
+    except Exception as e:
+        print(f"Failed to fetch users bulk: {e}")
+    return []
+
+def fetch_real_products():
+    try:
+        req = urllib.request.Request("http://product:5001/products")
+        with urllib.request.urlopen(req) as response:
+            res = json.loads(response.read().decode())
+            if res.get("success") and res.get("data"):
+                return res["data"]
+    except Exception as e:
+        print("Failed to fetch from product service:", e)
+    return []
+
+def fetch_real_orders():
+    try:
+        req = urllib.request.Request("http://order:5005/orders/internal/all")
+        with urllib.request.urlopen(req) as response:
+            res = json.loads(response.read().decode())
+            if res.get("success") and res.get("data"):
+                return res["data"]
+    except Exception as e:
+        print("Failed to fetch from order service:", e)
+    return []
+
+@app.on_event("startup")
+async def startup_event():
+    rag.build_index(df_products)
+    svd.train(purchase_history)
 
 # -------------------------------------------------------------
-# STEP 4: PRECOMPUTE EMBEDDINGS
-# -------------------------------------------------------------
-print("Computing embeddings for all products...")
-product_embeddings = semantic_model.encode(df['combined_features'].tolist(), convert_to_tensor=True)
-
-# -------------------------------------------------------------
-# API ENDPOINTS
+# 3. AI EXPLANATION ENGINE (ROBUST)
 # -------------------------------------------------------------
 
-# -------------------------------------------------------------
-# HELPER FUNCTIONS
-# -------------------------------------------------------------
-
-def get_content_recommendations(product_id: int, top_n: int = 10):
-    if product_id not in df['id'].values:
-        return []
-    
-    # Ensure top_n doesn't exceed available products
-    total_products = len(df)
-    actual_n = min(top_n, total_products - 1)
-    
-    idx = df.index[df['id'] == product_id][0]
-    query_embedding = product_embeddings[idx]
-    cos_scores = util.cos_sim(query_embedding, product_embeddings)[0]
-    
-    # Get top results safely
-    top_results = np.argpartition(-cos_scores, range(actual_n + 1))[:actual_n + 1]
-    
-    recs = []
-    for i in top_results:
-        if df.iloc[int(i)]['id'] != product_id:
-            item = df.iloc[int(i)]
-            recs.append({
-                "id": int(item['id']),
-                "name": item['name'],
-                "category": item['category'],
-                "description": item['description'],
-                "content_score": float(cos_scores[i])
-            })
-    return recs
-
-def get_collab_recommendations(user_id: int):
-    user_owned = {p['product_id'] for p in purchase_history if p['user_id'] == user_id}
-    similar_users = {p['user_id'] for p in purchase_history if p['product_id'] in user_owned and p['user_id'] != user_id}
-    
-    counts = {}
-    for record in purchase_history:
-        if record['user_id'] in similar_users and record['product_id'] not in user_owned:
-            pid = record['product_id']
-            counts[pid] = counts.get(pid, 0) + 1
-            
-    # Normalize collab score (0-1 range roughly)
-    max_count = max(counts.values()) if counts else 1
-    
-    recs = []
-    for pid, count in counts.items():
-        product_data = df[df['id'] == pid].iloc[0]
-        recs.append({
-            "id": int(pid),
-            "name": product_data['name'],
-            "category": product_data['category'],
-            "description": product_data['description'],
-            "collab_score": count / max_count
-        })
-    return recs
-
-# -------------------------------------------------------------
-# API ENDPOINTS
-# -------------------------------------------------------------
-
-@app.get("/health")
-async def health():
-    return {"status": "Hybrid Recommendation Suite Running"}
-
-@app.get("/recommend/final")
-async def get_final_hybrid_recommendations(user_id: int = Query(...), product_id: int = Query(...)):
-    """
-    The Ultimate Hybrid Engine:
-    1. Content Score (60%) + Collaborative Score (40%)
-    2. Merges results from both worlds.
-    3. Gemini AI provides the human reasoning.
-    """
-    
-    # Step 1: Get Content results
-    content_recs = get_content_recommendations(product_id)
-    
-    # Step 2: Get Collaborative results
-    collab_recs = get_collab_recommendations(user_id)
-    
-    # Step 3: Merge and Score
-    merged = {} # id -> data
-    
-    for r in content_recs:
-        pid = r['id']
-        merged[pid] = {**r, "collab_score": 0}
-        
-    for r in collab_recs:
-        pid = r['id']
-        if pid in merged:
-            merged[pid]["collab_score"] = r["collab_score"]
+def generate_bulk_explanations(target_product, rec_products, context=None):
+    # Prepare fallback dictionary
+    reasons_dict = {}
+    for p in rec_products:
+        if context == "City": reasons_dict[p['id']] = "A highly popular choice among shoppers in your area."
+        elif context == "Global": reasons_dict[p['id']] = "A top-trending favorite across our entire marketplace."
+        elif context == "Essentials": reasons_dict[p['id']] = f"An excellent essential {p['category']} item to get you started."
         else:
-            merged[pid] = {**r, "content_score": 0}
-            
-    # Step 4: Calculate Final Weighted Score
-    final_list = []
-    for pid, data in merged.items():
-        final_score = (0.6 * data['content_score']) + (0.4 * data['collab_score'])
-        final_list.append({**data, "final_score": round(final_score, 4)})
-        
-    # Step 5: Sort and take Top 5
-    top_5 = sorted(final_list, key=lambda x: x['final_score'], reverse=True)[:5]
-    
-    # Step 6: Gemini Refinement (Individual Processing for higher accuracy)
-    ai_refined = []
-    if GEMINI_KEY:
+            meta = str(p.get('metadata', '')).lower()
+            if "vitamin" in meta: reasons_dict[p['id']] = "Provides essential nutrients, complementing your diet."
+            elif "protein" in meta: reasons_dict[p['id']] = "Adds protein, balancing your selection perfectly."
+            else: reasons_dict[p['id']] = f"Enhances your {target_product['category']} selection."
+
+    if not client or not rec_products:
+        return reasons_dict
+
+    # Build products text block
+    products_info = []
+    for p in rec_products:
+        products_info.append(f"- ID {p['id']}: {p['name']} (Meta: {p.get('metadata', '')})")
+    info_str = "\n".join(products_info)
+
+    for attempt in range(3):
         try:
-            target_product = df[df['id'] == product_id].iloc[0].to_dict()
-            model = genai.GenerativeModel('gemini-flash-latest')
+            if context == "City":
+                prompt = f"Act as a friendly shopping assistant. Recommend these products to a new user because they are highly popular in their city. Provide a max 12 word reason for each. Target product: {target_product['name']}. Products:\n{info_str}\nOutput valid JSON exactly like this: {{\"reasons\": [{{\"id\": 1, \"reason\": \"...\"}}]}}"
+            elif context == "Global":
+                prompt = f"Act as a friendly shopping assistant. Recommend these products to a new user because they are top-trending favorites. Provide a max 12 word reason for each. Target product: {target_product['name']}. Products:\n{info_str}\nOutput valid JSON exactly like this: {{\"reasons\": [{{\"id\": 1, \"reason\": \"...\"}}]}}"
+            elif context == "Essentials":
+                prompt = f"Act as a friendly shopping assistant. Recommend these products to a new user as essential items to get started. Provide a max 12 word reason for each. Target product: {target_product['name']}. Products:\n{info_str}\nOutput valid JSON exactly like this: {{\"reasons\": [{{\"id\": 1, \"reason\": \"...\"}}]}}"
+            else:
+                prompt = f"Explain why each of these products is a good recommendation for a user viewing {target_product['name']}. Provide a max 12 word reason for each focusing on benefits. Products:\n{info_str}\nOutput valid JSON exactly like this: {{\"reasons\": [{{\"id\": 1, \"reason\": \"...\"}}]}}"
+            
+            response = client.models.generate_content(
+                model='gemini-flash-latest',
+                contents=prompt
+            )
+            
+            res_text = response.text.strip()
+            match = re.search(r'\{.*\}', res_text, re.DOTALL)
+            if not match: continue
+            
+            data = json.loads(match.group())
+            for item in data.get("reasons", []):
+                reasons_dict[item["id"]] = item["reason"].strip()
+                
+            return reasons_dict
+        except Exception as e:
+            print(f"Gemini Attempt {attempt+1} Error: {str(e)}")
+            continue
 
-            for rec in top_5[:3]:
-                try:
-                    prompt = f"""
-                    You are a product recommendation assistant.
+    return reasons_dict
 
-                    User selected:
-                    {target_product['name']} - {target_product['description']} ({target_product['category']})
+# -------------------------------------------------------------
+# 4. API ENDPOINTS
+# -------------------------------------------------------------
 
-                    Recommended product:
-                    {rec['name']} - {rec['description']} ({rec['category']})
-
-                    Explain in ONE sentence why this product is a good recommendation.
-
-                    Rules:
-                    - Must refer ONLY to the recommended product
-                    - Must be specific (nutrition, taste, usage)
-                    - Keep under 12 words
-                    - No generic phrases
-
-                    Output ONLY JSON:
-                    {{ "reason": "..." }}
-                    """
-                    
-                    response = model.generate_content(prompt)
-                    text_response = response.text
-                    
-                    # Clean markdown if present
-                    if "```json" in text_response:
-                        text_response = text_response.split("```json")[1].split("```")[0].strip()
-                    elif "```" in text_response:
-                        text_response = text_response.split("```")[1].strip()
-
-                    ai_data = json.loads(text_response)
-                    ai_refined.append({
-                        "id": rec['id'],
-                        "reason": ai_data.get("reason", "Excellent choice for your shopping list.")
-                    })
-                except Exception as inner_e:
-                    print(f"Individual AI Error for product {rec['id']}: {inner_e}")
-                    ai_refined.append({
-                        "id": rec['id'],
-                        "reason": f"A high-quality {rec['category']} option to match your selection."
+@app.get("/recommend/explain")
+async def get_explained_recommendations(user_id: int, product_id: int):
+    global is_using_mock_data, df_products, global_real_orders, global_valid_history
+    
+    if is_using_mock_data:
+        real_prods = fetch_real_products()
+        if real_prods and len(real_prods) > 0:
+            formatted = []
+            for p in real_prods:
+                desc = p.get("extra_data", {}).get("description", p["name"]) if isinstance(p.get("extra_data"), dict) else p["name"]
+                formatted.append({
+                    "id": int(p["id"]),
+                    "name": p["name"],
+                    "description": desc,
+                    "category": p["category"],
+                    "metadata": f"Price: {p['price']}",
+                    "price": float(p["price"]),
+                    "vendor_id": int(p["vendor_id"])
+                })
+            df_new = pd.DataFrame(formatted)
+            df_products = df_new
+            rag.build_index(df_products)
+            
+            # Fetch real orders and train SVD Collaborative Filtering
+            global_real_orders = fetch_real_orders()
+            
+            # Fetch all users to map their cities to orders (Microservice Join)
+            all_users = fetch_all_users()
+            user_cities = {u["id"]: u.get("city", "Unknown") for u in all_users}
+            
+            global_valid_history = []
+            name_to_id = {row['name']: row['id'] for _, row in df_products.iterrows()}
+            
+            for o in global_real_orders:
+                p_name = o.get("product_id") # Note: Orders DB stores product name
+                if p_name in name_to_id:
+                    global_valid_history.append({
+                        "user_id": o["user_id"],
+                        "product_id": name_to_id[p_name],
+                        "city": user_cities.get(o["user_id"], "Unknown")
                     })
             
-        except Exception as e:
-            print(f"Hybrid AI Suite Error: {e}")
-            ai_refined = [{"id": r["id"], "reason": "Recommended based on your recent preferences."} for r in top_5[:3]]
+            if len(global_valid_history) > 0:
+                svd.train(global_valid_history)
+            else:
+                print("SVD: No valid real orders found yet. Falling back to default scoring.")
+            
+            is_using_mock_data = False
+
+    # Check if this is a Cold Start User (no order history)
+    is_cold_start = not any(str(h['user_id']) == str(user_id) for h in global_valid_history)
+    
+    if is_cold_start:
+        user_city = fetch_user_city(user_id)
+        recommendations = []
+        explanation_context = ""
+        
+        # Helper to get top products from a list of orders
+        def get_top_products(history_list, k=3):
+            from collections import Counter
+            counts = Counter([h['product_id'] for h in history_list])
+            top_ids = [item[0] for item in counts.most_common(k)]
+            return [
+                {
+                    "id": pid,
+                    "name": df_products[df_products['id'] == pid].iloc[0]['name'],
+                    "category": df_products[df_products['id'] == pid].iloc[0]['category']
+                } for pid in top_ids if pid in df_products['id'].values
+            ]
+
+        # Tier 1: City Popularity
+        city_history = [h for h in global_valid_history if str(h.get('city', '')).lower() == str(user_city).lower()]
+        if len(city_history) > 0:
+            recommendations = get_top_products(city_history)
+            explanation_context = "City"
+        
+        # Tier 2: Platform Popularity
+        if not recommendations and len(global_valid_history) > 0:
+            recommendations = get_top_products(global_valid_history)
+            explanation_context = "Global"
+            
+        # Tier 3: Essentials Fallback
+        if not recommendations:
+            essential_cats = ['grocery', 'food', 'clothing', 'bakery', 'dairy', 'fruit']
+            # Get a diverse sample by picking random items from different categories if possible
+            essentials = df_products[df_products['category'].str.lower().isin(essential_cats)]
+            if not essentials.empty:
+                # Shuffle and pick up to 3
+                sampled = essentials.sample(n=min(3, len(essentials)))
+            else:
+                sampled = df_products.sample(n=min(3, len(df_products)))
+            
+            for _, row in sampled.iterrows():
+                recommendations.append({
+                    "id": int(row['id']),
+                    "name": row['name'],
+                    "category": row['category']
+                })
+            explanation_context = "Essentials"
+
+        target_product = df_products[df_products['id'] == product_id].iloc[0] if product_id in df_products['id'].values else df_products.iloc[0]
+        
+        rec_data_list = [df_products[df_products['id'] == rec['id']].iloc[0].to_dict() for rec in recommendations]
+        bulk_reasons = generate_bulk_explanations(target_product.to_dict(), rec_data_list, context=explanation_context)
+        
+        explained_recs = []
+        for rec in recommendations:
+            rec_data = df_products[df_products['id'] == rec['id']].iloc[0]
+            reason = bulk_reasons.get(rec['id'], "A highly recommended item for you.")
+            explained_recs.append({
+                **rec,
+                "ai_explanation": reason,
+                "vendor_id": int(rec_data.get('vendor_id', 1)),
+                "price": float(rec_data.get('price', 0))
+            })
+            
+        return {
+            "user_id": user_id,
+            "base_product": target_product['name'],
+            "recommendations": explained_recs,
+            "cold_start": True
+        }
+
+    # -------------------------------------------------------------
+    # DYNAMIC MULTI-SEED OVERRIDE (AI DECIDES)
+    # -------------------------------------------------------------
+    # To provide highly accurate, mixed recommendations, we look at the user's
+    # last 3 unique purchases and use all of them as simultaneous seeds!
+    user_history = [h for h in global_valid_history if str(h['user_id']) == str(user_id)]
+    history_ids = []
+    
+    if len(user_history) > 0:
+        # Get unique product IDs preserving order, then take the last 3
+        unique_history = list(dict.fromkeys([h['product_id'] for h in user_history]))
+        history_ids = unique_history[-3:]
+    else:
+        # Fallback if product_id is not found
+        if product_id not in df_products['id'].values:
+            if not df_products.empty:
+                product_id = int(df_products.iloc[0]['id'])
+            else:
+                raise HTTPException(status_code=404, detail="Product not found in DB")
+        history_ids = [product_id]
+
+    recommendations = hybrid.get_hybrid_scores(user_id, history_ids, df_products)
+    
+    # We use the most recent item as the target for explanation generation
+    primary_target_id = history_ids[-1]
+    target_product = df_products[df_products['id'] == primary_target_id].iloc[0]
+    
+    rec_data_list = [df_products[df_products['id'] == rec['id']].iloc[0].to_dict() for rec in recommendations]
+    bulk_reasons = generate_bulk_explanations(target_product.to_dict(), rec_data_list)
+    
+    explained_recs = []
+    for rec in recommendations:
+        rec_data = df_products[df_products['id'] == rec['id']].iloc[0]
+        reason = bulk_reasons.get(rec['id'], "A highly recommended item for you.")
+        
+        # Include vendor_id and price explicitly
+        explained_recs.append({
+            **rec, 
+            "ai_explanation": reason,
+            "vendor_id": int(rec_data.get('vendor_id', 1)),
+            "price": float(rec_data.get('price', 0))
+        })
 
     return {
         "user_id": user_id,
-        "product_id": product_id,
-        "hybrid_recommendations": top_5,
-        "ai_refined": ai_refined
+        "base_product": target_product['name'],
+        "recommendations": explained_recs
     }
 
-@app.get("/recommend/hybrid-semantic")
-async def get_hybrid_semantic_legacy(product_id: int = Query(...)):
-    # Simple wrapper for previous logic
-    recs = get_content_recommendations(product_id, top_n=5)
-    return {"requested_id": product_id, "recommendations": recs}
+@app.get("/evaluate/model")
+async def evaluate_model(k: int = 5):
+    test_users = [1, 2]
+    ground_truth = {1: [1, 2], 2: [1, 3, 9]}
+    precisions, recalls, actual_list, predicted_list = [], [], [], []
 
-@app.get("/recommend/collaborative")
-async def get_collaborative_legacy(user_id: int = Query(...)):
-    # Simple wrapper for previous logic
-    return {"user_id": user_id, "recommendations": get_collab_recommendations(user_id)}
+    for uid in test_users:
+        recs = hybrid.get_hybrid_scores(uid, 1, df_products, top_k=k)
+        predicted_ids = [r['id'] for r in recs]
+        actual = ground_truth[uid]
+        actual_list.append(actual)
+        predicted_list.append(predicted_ids)
+        precisions.append(evaluator.precision_at_k(actual, predicted_ids, k))
+        recalls.append(evaluator.recall_at_k(actual, predicted_ids, k))
+
+    return {
+        "metrics": {
+            "Precision@K": round(np.mean(precisions), 4),
+            "Recall@K": round(np.mean(recalls), 4),
+            "MAP@K": round(evaluator.mean_average_precision(actual_list, predicted_list, k), 4)
+        }
+    }
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8008, reload=True)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8008)

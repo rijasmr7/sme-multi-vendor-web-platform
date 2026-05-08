@@ -24,6 +24,10 @@ router.post('/login', userController.login);
 router.post('/customer/register', userController.customerRegister);
 router.post('/customer/login', userController.customerLogin);
 
+// --- INTERNAL ROUTES ---
+router.get('/internal/:id', userController.getInternalUser);
+router.get('/internal-bulk/users', userController.getAllUsersInternal);
+
 // --- PROTECTED ROUTES ---
 // These routes require a valid JWT token in the Authorization header
 router.get('/profile', authenticateToken, userController.getProfile);
