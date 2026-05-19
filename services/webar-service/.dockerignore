@@ -1,0 +1,7 @@
+node_modules
+npm-debug.log
+src/uploads
+prisma/migrations
+.env
+Dockerfile
+docker-compose.yml

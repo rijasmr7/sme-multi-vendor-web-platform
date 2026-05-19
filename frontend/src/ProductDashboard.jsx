@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Package, Plus, Trash2, Edit2, Loader2, Save, X, ArrowLeft } from 'lucide-react';
+import { Package, Plus, Trash2, Edit2, Loader2, Save, X, ArrowLeft, UploadCloud } from 'lucide-react';
 import './ProductDashboard.css';
 
 const API_GATEWAY = 'http://localhost:5000';
@@ -111,6 +111,31 @@ export default function ProductDashboard() {
       fetchProducts();
     } catch (err) {
       alert('Failed to delete product');
+    }
+  };
+
+  // 5. Handle Upload AR Model
+  const handleUploadAR = async (e, productId, shopId) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('vendor_id', vendorId);
+    formData.append('shop_id', shopId || 1); // Default shop fallback
+    formData.append('product_id', productId);
+
+    try {
+      alert("Uploading and optimizing 3D model... This may take a moment.");
+      // WebAR service is on port 5006
+      const res = await axios.post(`http://localhost:5006/models/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res.data.success) {
+        alert('🎉 3D visualization is ready! Your customers can now see this product in 3D and AR.');
+      }
+    } catch (err) {
+      alert('Failed to upload AR model: ' + (err.response?.data?.message || err.message));
     }
   };
 
@@ -259,6 +284,15 @@ export default function ProductDashboard() {
                     <span className="product-price">${parseFloat(product.price).toFixed(2)}</span>
                   </div>
                   <div className="product-actions">
+                    <label className="btn-icon" style={{color: '#10b981', cursor: 'pointer', margin: '0 5px'}} title="Add 3D View for Customers">
+                      <UploadCloud size={18} />
+                      <input 
+                        type="file" 
+                        accept=".glb,.obj,.stl" 
+                        style={{display: 'none'}} 
+                        onChange={(e) => handleUploadAR(e, product.id, product.shop_id)} 
+                      />
+                    </label>
                     <button className="btn-icon text-blue" title="Edit" onClick={() => alert('Edit not implemented yet')}>
                       <Edit2 size={18} />
                     </button>

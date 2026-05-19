@@ -92,10 +92,21 @@ const deleteProduct = async (req, res) => {
     }
 };
 
+const getPublicVendorProducts = async (req, res) => {
+    const { vendorId } = req.params;
+    try {
+        const products = await productService.getProductsByVendor(vendorId);
+        sendSuccess(res, products);
+    } catch (error) {
+        sendError(res, 'Failed to fetch public vendor products');
+    }
+};
+
 module.exports = {
     createProduct,
     getAllProducts,
     getVendorProducts,
+    getPublicVendorProducts,
     updateProduct,
     deleteProduct
 };

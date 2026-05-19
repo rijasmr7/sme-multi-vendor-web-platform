@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import { ChevronLeft, ShoppingCart, Package, Info, Mail, Star, Phone, Menu, X, Minus, Plus, ClipboardList } from 'lucide-react';
+import { ChevronLeft, ShoppingCart, Package, Info, Mail, Star, Phone, Menu, X, Minus, Plus, ClipboardList, Box } from 'lucide-react';
+import ARViewer from './components/webar/ARViewer';
 
 const GATEWAY_URL = 'http://localhost:5000';
 
@@ -35,6 +36,33 @@ const ShopView = () => {
     zip_code: ''
   });
 
+  // AR Modal State
+  const [showArModal, setShowArModal] = useState(false);
+  const [activeArModelUrl, setActiveArModelUrl] = useState(null);
+  const [arLoading, setArLoading] = useState(false);
+
+  const handleOpenAR = async (productId) => {
+    setArLoading(productId);
+    try {
+      const response = await axios.get(`http://localhost:5006/models/product/${productId}`);
+      if (response.data.success && response.data.data) {
+        // Build the absolute URL to the GLB file
+        setActiveArModelUrl(`http://localhost:5006${response.data.data.optimized_file_url}`);
+        setShowArModal(true);
+        // Track 3D View Analytics
+        axios.post(`http://localhost:5006/models/product/${productId}/analytics`, { type: '3d' }).catch(console.error);
+      }
+    } catch (err) {
+       if (err.response?.status === 404) {
+         alert("No 3D model found for this product yet.");
+       } else {
+         alert("Failed to load 3D model. Please try again later.");
+       }
+    } finally {
+      setArLoading(false);
+    }
+  };
+
   useEffect(() => {
     const storedCart = localStorage.getItem('cart');
     if (storedCart) setCartItems(JSON.parse(storedCart));
@@ -63,9 +91,34 @@ const ShopView = () => {
   useEffect(() => {
     const fetchShop = async () => {
       try {
-        const response = await axios.get(`${GATEWAY_URL}/public/shops/${id}`);
-        if (response.data.success) {
-          setShop(response.data.data);
+        // 1. Fetch the AI-generated shop configuration
+        const shopResponse = await axios.get(`${GATEWAY_URL}/public/shops/${id}`);
+        if (shopResponse.data.success) {
+          const shopData = shopResponse.data.data;
+          
+          // 2. Fetch the REAL products for this vendor to get their IDs
+          try {
+            const productsResponse = await axios.get(`${GATEWAY_URL}/public/products/vendor/${shopData.vendor_id}`);
+            if (productsResponse.data.success) {
+              const realProducts = productsResponse.data.data;
+              
+              // 3. Link the AI descriptions with the real Product IDs based on name matching
+              const enrichedProducts = shopData.products.map(aiProd => {
+                const match = realProducts.find(p => p.name.toLowerCase().includes(aiProd.name.toLowerCase()) || aiProd.name.toLowerCase().includes(p.name.toLowerCase()));
+                return {
+                  ...aiProd,
+                  id: match ? match.id : null, // This is the ID we need for WebAR
+                  price: match ? match.price : aiProd.price
+                };
+              });
+              
+              shopData.products = enrichedProducts;
+            }
+          } catch (pErr) {
+            console.warn("Could not fetch real products for enrichment:", pErr);
+          }
+
+          setShop(shopData);
         }
       } catch (err) {
         console.error("Error fetching shop:", err);
@@ -519,9 +572,17 @@ const ShopView = () => {
 
               <div>
                 <h4 style={{ fontSize: '1.25rem', fontWeight: '700', color: textColor, marginBottom: '0.25rem' }}>{product.name}</h4>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '8px' }}>
                   <span style={{ fontSize: '1.5rem', fontWeight: '800', color: primaryColor }}>LKR {parseFloat(product.price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span>
-                  <span style={{ fontSize: '0.75rem', background: `${primaryColor}22`, color: primaryColor, padding: '4px 8px', borderRadius: '6px', fontWeight: '700' }}>In Stock</span>
+                  
+                  {/* AR View Button */}
+                  <button 
+                    onClick={() => handleOpenAR(product.id)}
+                    disabled={arLoading === product.id}
+                    style={{ background: `${secondaryColor}22`, border: `1px solid ${secondaryColor}`, color: secondaryColor, padding: '4px 10px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+                  >
+                    <Box size={16} /> {arLoading === product.id ? 'Loading...' : 'View in 3D / AR'}
+                  </button>
                 </div>
                 
                 {product.description && (
@@ -860,6 +921,36 @@ const ShopView = () => {
             >
                 {orderLoading === true ? 'Processing...' : 'Confirm Order'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* AR MODAL */}
+      {showArModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)', zIndex: 3000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div className="glass-card animate-fade-in" style={{
+            background: backgroundColor, width: '100%', maxWidth: '900px', 
+            height: '85vh', padding: '1.5rem',
+            position: 'relative', borderRadius: '20px',
+            display: 'flex', flexDirection: 'column'
+          }}>
+            <button onClick={() => setShowArModal(false)} style={{
+              position: 'absolute', top: '1.5rem', right: '1.5rem',
+              background: 'rgba(0,0,0,0.1)', border: 'none', cursor: 'pointer', color: textColor,
+              borderRadius: '50%', padding: '8px', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <X size={24} />
+            </button>
+            <h2 style={{ color: primaryColor, marginBottom: '1rem', marginLeft: '0.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Box size={24} /> Interactive 3D Preview
+            </h2>
+            <div style={{ flex: 1, borderRadius: '16px', overflow: 'hidden', background: '#f8fafc', position: 'relative', border: `1px solid ${primaryColor}33` }}>
+               {activeArModelUrl && <ARViewer modelUrl={activeArModelUrl} />}
+            </div>
           </div>
         </div>
       )}

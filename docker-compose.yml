@@ -6,6 +6,9 @@ services:
     container_name: sme_gateway
     ports:
       - "5000:5000"
+    volumes:
+      - ./gateway:/app
+      - /app/node_modules
     environment:
       # Inject Docker internal DNS locations
       - PRODUCT_SERVICE_URL=http://product:5001
@@ -14,6 +17,7 @@ services:
       - USER_SERVICE_URL=http://user:5004
       - ORDER_SERVICE_URL=http://order:5005
       - RECOMMENDER_SERVICE_URL=http://recommender:8008
+      - WEBAR_SERVICE_URL=http://webar:5006
     depends_on:
       - product
       - ai
@@ -21,6 +25,7 @@ services:
       - user
       - order
       - recommender
+      - webar
 
   product:
     build: ./services/product-service
@@ -99,7 +104,18 @@ services:
     depends_on:
       - postgres
 
-
+  webar:
+    build: ./services/webar-service
+    container_name: sme_webar_service
+    ports:
+      - "5006:5006"
+    env_file:
+      - ./services/webar-service/.env
+    volumes:
+      - ./services/webar-service:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
   frontend:
     build: ./frontend
     container_name: sme_frontend

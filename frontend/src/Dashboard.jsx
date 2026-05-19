@@ -172,6 +172,7 @@ function SelectionPage({ shops, onSelect }) {
 // VIEW 2: LIVE SHOP DASHBOARD
 // ==========================================
 function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiveTab }) {
+  const navigate = useNavigate();
   const primary = shop.config?.theme?.primary || '#6366f1';
   const shopProducts = products.filter(p => shop.config?.products?.some(sp => sp.name === p.name));
   const shopOrders = orders.filter(o => o.shop_id === shop.id);
@@ -198,51 +199,115 @@ function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiv
 
       {/* Main */}
       <main style={{ flex: 1, overflowY: 'auto', padding: '3rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
-          <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: '900', color: '#1e293b', margin: 0 }}>Business Overview</h1>
-            <p style={{ color: '#64748b' }}>Track your sales and operational growth.</p>
+        {activeTab === 'overview' ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
+              <div>
+                <h1 style={{ fontSize: '2rem', fontWeight: '900', color: '#1e293b', margin: 0 }}>Business Overview</h1>
+                <p style={{ color: '#64748b' }}>Track your sales and operational growth.</p>
+              </div>
+              <button onClick={() => window.open(`http://localhost:5174/shop/${shop.id}`, '_blank')} style={{ background: primary, color: 'white', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Go to Store <Eye size={18} />
+              </button>
+            </div>
+
+            {/* Stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
+              <MetricCard label="Revenue" value={`LKR ${(shopOrders.reduce((s, o) => s + parseFloat(o.total_price), 0)).toLocaleString()}`} color={primary} />
+              <MetricCard label="Orders" value={shopOrders.length} color="#8b5cf6" />
+              <MetricCard label="Total Products" value={shopProducts.length} color="#f59e0b" />
+            </div>
+
+            {/* Recent Orders */}
+            <div style={{ background: 'white', borderRadius: '24px', padding: '2rem', border: '1px solid #e2e8f0' }}>
+              <h3 style={{ margin: '0 0 1.5rem 0', fontWeight: '800' }}>Recent Transactions</h3>
+              {shopOrders.length > 0 ? (
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                   <thead>
+                     <tr style={{ textAlign: 'left', color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase' }}>
+                       <th style={{ padding: '1rem' }}>Order ID</th>
+                       <th style={{ padding: '1rem' }}>Product</th>
+                       <th style={{ padding: '1rem' }}>Status</th>
+                       <th style={{ padding: '1rem' }}>Total</th>
+                     </tr>
+                   </thead>
+                   <tbody>
+                     {shopOrders.slice(0, 5).map(order => (
+                       <tr key={order.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                         <td style={{ padding: '1rem', fontWeight: '700', color: primary }}>#{order.id}</td>
+                         <td style={{ padding: '1rem' }}>{order.product_id}</td>
+                         <td style={{ padding: '1rem' }}>
+                           <span style={{ padding: '4px 10px', borderRadius: '100px', fontSize: '0.75rem', fontWeight: '700', background: '#dcfce7', color: '#166534' }}>{order.status}</span>
+                         </td>
+                         <td style={{ padding: '1rem', fontWeight: '700' }}>LKR {parseFloat(order.total_price).toLocaleString()}</td>
+                       </tr>
+                     ))}
+                   </tbody>
+                </table>
+              ) : <p style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem' }}>No orders found yet.</p>}
+            </div>
+          </>
+        ) : activeTab === 'products' ? (
+          <div style={{ maxWidth: '800px' }}>
+            <h1 style={{ fontSize: '2rem', fontWeight: '900', color: '#1e293b', marginBottom: '0.5rem' }}>Inventory Management</h1>
+            <p style={{ color: '#64748b', marginBottom: '3rem' }}>Add new products and manage your 3D WebAR assets.</p>
+
+            <div style={{ 
+              background: 'white', 
+              padding: '4rem 2rem', 
+              borderRadius: '32px', 
+              border: '1px solid #e2e8f0', 
+              textAlign: 'center',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.05)'
+            }}>
+               <div style={{ 
+                 width: '80px', 
+                 height: '80px', 
+                 background: `${primary}15`, 
+                 color: primary, 
+                 borderRadius: '24px', 
+                 display: 'flex', 
+                 alignItems: 'center', 
+                 justifyContent: 'center',
+                 margin: '0 auto 2rem'
+               }}>
+                 <Package size={40} />
+               </div>
+               <h2 style={{ fontSize: '1.75rem', fontWeight: '900', color: '#1e293b', marginBottom: '1rem' }}>Product Catalog</h2>
+               <p style={{ color: '#64748b', marginBottom: '2.5rem', maxWidth: '400px', margin: '0 auto 2.5rem' }}>
+                 Keep your store up to date. Add new items, update pricing, and upload 3D models for your customers.
+               </p>
+               <button 
+                 onClick={() => navigate('/products', { state: { shopId: shop.id } })}
+                 style={{ 
+                   background: primary, 
+                   color: 'white', 
+                   border: 'none', 
+                   padding: '16px 40px', 
+                   borderRadius: '16px', 
+                   fontWeight: '800', 
+                   cursor: 'pointer', 
+                   display: 'inline-flex', 
+                   alignItems: 'center', 
+                   gap: '12px',
+                   fontSize: '1.1rem',
+                   boxShadow: `0 10px 15px -3px ${primary}44`,
+                   transition: 'all 0.2s'
+                 }}
+                 onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                 onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+               >
+                 <Plus size={24} /> Manage Products
+               </button>
+            </div>
           </div>
-          <button onClick={() => window.open(`http://localhost:5174/shop/${shop.id}`, '_blank')} style={{ background: primary, color: 'white', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            Go to Store <Eye size={18} />
-          </button>
-        </div>
-
-        {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
-          <MetricCard label="Revenue" value={`LKR ${(shopOrders.reduce((s, o) => s + parseFloat(o.total_price), 0)).toLocaleString()}`} color={primary} />
-          <MetricCard label="Orders" value={shopOrders.length} color="#8b5cf6" />
-          <MetricCard label="Total Products" value={shopProducts.length} color="#f59e0b" />
-        </div>
-
-        {/* Recent Orders */}
-        <div style={{ background: 'white', borderRadius: '24px', padding: '2rem', border: '1px solid #e2e8f0' }}>
-          <h3 style={{ margin: '0 0 1.5rem 0', fontWeight: '800' }}>Recent Transactions</h3>
-          {shopOrders.length > 0 ? (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-               <thead>
-                 <tr style={{ textAlign: 'left', color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase' }}>
-                   <th style={{ padding: '1rem' }}>Order ID</th>
-                   <th style={{ padding: '1rem' }}>Product</th>
-                   <th style={{ padding: '1rem' }}>Status</th>
-                   <th style={{ padding: '1rem' }}>Total</th>
-                 </tr>
-               </thead>
-               <tbody>
-                 {shopOrders.slice(0, 5).map(order => (
-                   <tr key={order.id} style={{ borderTop: '1px solid #f1f5f9' }}>
-                     <td style={{ padding: '1rem', fontWeight: '700', color: primary }}>#{order.id}</td>
-                     <td style={{ padding: '1rem' }}>{order.product_id}</td>
-                     <td style={{ padding: '1rem' }}>
-                       <span style={{ padding: '4px 10px', borderRadius: '100px', fontSize: '0.75rem', fontWeight: '700', background: '#dcfce7', color: '#166534' }}>{order.status}</span>
-                     </td>
-                     <td style={{ padding: '1rem', fontWeight: '700' }}>LKR {parseFloat(order.total_price).toLocaleString()}</td>
-                   </tr>
-                 ))}
-               </tbody>
-            </table>
-          ) : <p style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem' }}>No orders found yet.</p>}
-        </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '8rem 2rem', color: '#94a3b8' }}>
+            <Settings size={64} style={{ marginBottom: '1.5rem', opacity: 0.2 }} />
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#1e293b', marginBottom: '0.5rem' }}>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h2>
+            <p>This section is currently being optimized for your experience.</p>
+          </div>
+        )}
       </main>
     </div>
   );
@@ -252,6 +317,7 @@ function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiv
 // VIEW 3: DRAFT SHOP DASHBOARD
 // ==========================================
 function DraftShopDashboard({ shop, onBack, activeTab, setActiveTab }) {
+  const navigate = useNavigate();
   const primary = '#f59e0b'; // Amber for draft
 
   return (
@@ -275,28 +341,86 @@ function DraftShopDashboard({ shop, onBack, activeTab, setActiveTab }) {
 
       {/* Main */}
       <main style={{ flex: 1, overflowY: 'auto', padding: '3rem' }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-          <div style={{ marginBottom: '3rem' }}>
-            <h1 style={{ fontSize: '2rem', fontWeight: '900', color: '#451a03', margin: 0 }}>Launch Your Business</h1>
-            <p style={{ color: '#92400e' }}>Complete the steps below to go live on our marketplace.</p>
-          </div>
+        {activeTab === 'products' ? (
+          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+            <div style={{ marginBottom: '3rem' }}>
+              <h1 style={{ fontSize: '2rem', fontWeight: '900', color: '#451a03', margin: 0 }}>Product Setup</h1>
+              <p style={{ color: '#92400e' }}>Define your inventory before you go live.</p>
+            </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <ChecklistItem title="Generate Brand Identity" completed={true} />
-            <ChecklistItem title="Add at least 3 products" completed={shop.config?.products?.length >= 3} />
-            <ChecklistItem title="Configure delivery options" completed={false} />
-            <ChecklistItem title="Final store review" completed={false} />
+            <div style={{ 
+              background: 'white', 
+              padding: '4rem 2rem', 
+              borderRadius: '32px', 
+              border: '1px solid #fef3c7', 
+              textAlign: 'center',
+              boxShadow: '0 20px 25px -5px rgba(251, 191, 36, 0.05)'
+            }}>
+               <div style={{ 
+                 width: '80px', 
+                 height: '80px', 
+                 background: `${primary}15`, 
+                 color: primary, 
+                 borderRadius: '24px', 
+                 display: 'flex', 
+                 alignItems: 'center', 
+                 justifyContent: 'center',
+                 margin: '0 auto 2rem'
+               }}>
+                 <Package size={40} />
+               </div>
+               <h2 style={{ fontSize: '1.75rem', fontWeight: '900', color: '#451a03', marginBottom: '1rem' }}>Your Catalog</h2>
+               <p style={{ color: '#92400e', marginBottom: '2.5rem', maxWidth: '400px', margin: '0 auto 2.5rem' }}>
+                 Every great shop starts with great products. Add your items and upload 3D models to stand out.
+               </p>
+               <button 
+                 onClick={() => navigate('/products', { state: { shopId: shop.id } })}
+                 style={{ 
+                   background: primary, 
+                   color: 'white', 
+                   border: 'none', 
+                   padding: '16px 40px', 
+                   borderRadius: '16px', 
+                   fontWeight: '800', 
+                   cursor: 'pointer', 
+                   display: 'inline-flex', 
+                   alignItems: 'center', 
+                   gap: '12px',
+                   fontSize: '1.1rem',
+                   boxShadow: `0 10px 15px -3px ${primary}44`,
+                   transition: 'all 0.2s'
+                 }}
+                 onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                 onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+               >
+                 <Plus size={24} /> Configure Products
+               </button>
+            </div>
           </div>
+        ) : (
+          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+            <div style={{ marginBottom: '3rem' }}>
+              <h1 style={{ fontSize: '2rem', fontWeight: '900', color: '#451a03', margin: 0 }}>Launch Your Business</h1>
+              <p style={{ color: '#92400e' }}>Complete the steps below to go live on our marketplace.</p>
+            </div>
 
-          <div style={{ marginTop: '3rem', padding: '2.5rem', background: 'white', borderRadius: '24px', border: '2px dashed #f59e0b', textAlign: 'center' }}>
-             <Rocket size={48} style={{ color: '#f59e0b', marginBottom: '1rem' }} />
-             <h3 style={{ margin: '0 0 0.5rem 0', fontWeight: '800' }}>Ready to go?</h3>
-             <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Once you finish the checklist, you can publish your shop to the global marketplace.</p>
-             <button disabled style={{ background: '#cbd5e1', color: 'white', border: 'none', padding: '12px 32px', borderRadius: '12px', fontWeight: '700', cursor: 'not-allowed' }}>
-               Publish Now
-             </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <ChecklistItem title="Generate Brand Identity" completed={true} />
+              <ChecklistItem title="Add at least 3 products" completed={shop.config?.products?.length >= 3} />
+              <ChecklistItem title="Configure delivery options" completed={false} />
+              <ChecklistItem title="Final store review" completed={false} />
+            </div>
+
+            <div style={{ marginTop: '3rem', padding: '2.5rem', background: 'white', borderRadius: '24px', border: '2px dashed #f59e0b', textAlign: 'center' }}>
+               <Rocket size={48} style={{ color: '#f59e0b', marginBottom: '1rem' }} />
+               <h3 style={{ margin: '0 0 0.5rem 0', fontWeight: '800' }}>Ready to go?</h3>
+               <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>Once you finish the checklist, you can publish your shop to the global marketplace.</p>
+               <button disabled style={{ background: '#cbd5e1', color: 'white', border: 'none', padding: '12px 32px', borderRadius: '12px', fontWeight: '700', cursor: 'not-allowed' }}>
+                 Publish Now
+               </button>
+            </div>
           </div>
-        </div>
+        )}
       </main>
     </div>
   );

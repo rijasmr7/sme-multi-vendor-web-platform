@@ -18,7 +18,8 @@ const SERVICES = {
     ai: process.env.AI_SERVICE_URL || 'http://localhost:5002',
     analytics: process.env.ANALYTICS_SERVICE_URL || 'http://localhost:5003',
     order: process.env.ORDER_SERVICE_URL || 'http://localhost:5005',
-    recommender: process.env.RECOMMENDER_SERVICE_URL || 'http://localhost:8008'
+    recommender: process.env.RECOMMENDER_SERVICE_URL || 'http://localhost:8008',
+    webar: process.env.WEBAR_SERVICE_URL || 'http://localhost:5006'
 };
 
 // -------------------------------------------------------------
@@ -117,6 +118,18 @@ app.get('/products/vendor/:vendorId', async (req, res) => {
     try {
         const vendorId = req.params.vendorId;
         console.log(`>>> [Gateway] Forwarding GET /products/vendor/${vendorId}`);
+        const response = await axios.get(`${SERVICES.product}/products/vendor/${vendorId}`);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Product Service');
+    }
+});
+
+// Public version for customer site (No Auth)
+app.get('/public/products/vendor/:vendorId', async (req, res) => {
+    try {
+        const vendorId = req.params.vendorId;
+        console.log(`>>> [Gateway] Forwarding GET /public/products/vendor/${vendorId}`);
         const response = await axios.get(`${SERVICES.product}/products/vendor/${vendorId}`);
         res.status(response.status).json(response.data);
     } catch (error) {

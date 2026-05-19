@@ -1,0 +1,28 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model ArModel {
+  id          Int      @id @default(autoincrement())
+  vendor_id   Int
+  shop_id     Int
+  product_id  Int
+  model_name         String
+  file_url           String
+  optimized_file_url String?
+  original_size      Int
+  optimized_size     Int?
+  compression_ratio  Float?
+  file_format        String   @default("glb")
+  views_3d           Int      @default(0)
+  views_ar           Int      @default(0)
+  uploaded_at        DateTime @default(now())
+
+  @@map("ar_models")
+}
