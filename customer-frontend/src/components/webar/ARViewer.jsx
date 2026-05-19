@@ -4,7 +4,7 @@ import { XR, Controllers, Interactive, useHitTest } from '@react-three/xr';
 import { useGLTF } from '@react-three/drei';
 import ProductViewer from './ProductViewer';
 import ARButton from './ARButton';
-import UnsupportedAR from './UnsupportedAR';
+import CameraFallbackAR from './CameraFallbackAR';
 
 // The AR-specific Model logic. This handles finding the floor and placing the object.
 const ARModel = ({ url }) => {
@@ -63,6 +63,7 @@ const ARModel = ({ url }) => {
 
 const ARViewer = ({ modelUrl }) => {
   const [isARSupported, setIsARSupported] = useState(null);
+  const [showFallback, setShowFallback] = useState(false);
 
   return (
     <div className="w-full flex flex-col items-center">
@@ -72,9 +73,18 @@ const ARViewer = ({ modelUrl }) => {
       </div>
 
       {/* 2. The AR Launch Button (Only shows on mobile) */}
-      <ARButton onARSupported={setIsARSupported} />
+      <ARButton 
+        onARSupported={setIsARSupported} 
+        onFallbackAR={() => setShowFallback(true)} 
+      />
 
-      {/* 3. The Warning Note - Removed from main view to clean up desktop UI */}
+      {/* 3. Simulated Camera AR Fallback for Low-End Devices */}
+      {showFallback && (
+        <CameraFallbackAR 
+          modelUrl={modelUrl} 
+          onClose={() => setShowFallback(false)} 
+        />
+      )}
 
       {/* 
         4. The WebXR Canvas (Hidden visually, but active in the DOM)
