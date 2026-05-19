@@ -35,7 +35,21 @@ const ARButton = ({ onARSupported, onFallbackAR }) => {
       setIsSupported(false);
       if (onARSupported) onARSupported(false);
     }
-  }, [onARSupported]);
+
+    // Intercept runtime failures (e.g. ARCore fails to install on low-end devices like J6)
+    const handleUnhandledRejection = (event) => {
+      if (event.reason && (event.reason.name === 'NotSupportedError' || event.reason.message?.includes('runtime'))) {
+        console.warn("WebXR session failed to start (ARCore incompatible). Switching to Camera Fallback.");
+        setIsSupported(false);
+        if (onARSupported) onARSupported(false);
+        if (onFallbackAR) onFallbackAR();
+        event.preventDefault(); // Prevent standard console error
+      }
+    };
+    
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    return () => window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+  }, [onARSupported, onFallbackAR]);
 
   // Wait until we know support status
   if (isSupported === null) return null;
