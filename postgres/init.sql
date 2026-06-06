@@ -3,3 +3,4 @@ CREATE DATABASE product_db;
 CREATE DATABASE analytics_db;
 CREATE DATABASE ai_db;
 CREATE DATABASE order_db;
+CREATE DATABASE location_db;

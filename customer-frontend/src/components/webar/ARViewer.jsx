@@ -1,13 +1,15 @@
 import React, { useState, Suspense, useRef } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { XR, Controllers, Interactive, useHitTest } from '@react-three/xr';
+import { Canvas, useThree } from '@react-three/fiber';
+import { XR, Controllers, Interactive, useHitTest, useXREvent } from '@react-three/xr';
 import { useGLTF } from '@react-three/drei';
+import * as THREE from 'three';
 import ProductViewer from './ProductViewer';
 import ARButton from './ARButton';
 import CameraFallbackAR from './CameraFallbackAR';
 
 // The AR-specific Model logic. This handles finding the floor and placing the object.
 const ARModel = ({ url }) => {
+  const { camera } = useThree();
   // We use the same Draco decoder path as the ProductViewer
   const { scene } = useGLTF(url, 'https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
   const reticleRef = useRef();
@@ -24,16 +26,33 @@ const ARModel = ({ url }) => {
   });
 
   const placeModel = () => {
+    if (modelPosition) return;
+
     // When the user taps the screen, we lock the model to the reticle's coordinates
-    if (reticleRef.current && reticleRef.current.visible && !modelPosition) {
+    if (reticleRef.current && reticleRef.current.visible) {
       setModelPosition([
         reticleRef.current.position.x,
         reticleRef.current.position.y,
         reticleRef.current.position.z,
       ]);
       reticleRef.current.visible = false;
+    } else {
+      // Fallback placement: place model 1.5 meters in front of the camera
+      const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+      const pos = new THREE.Vector3().copy(camera.position).add(dir.multiplyScalar(1.5));
+      
+      // Place it slightly lower so it appears to be on the floor/table
+      pos.y = Math.min(pos.y, camera.position.y - 1.0);
+      
+      setModelPosition([pos.x, pos.y, pos.z]);
+      if (reticleRef.current) {
+        reticleRef.current.visible = false;
+      }
     }
   };
+
+  // Listen for global select (tap) events in WebXR AR session
+  useXREvent('select', placeModel);
 
   return (
     <>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { io } from 'socket.io-client';
 import { 
   LayoutDashboard, 
   Package, 
@@ -21,9 +22,16 @@ import {
   Rocket,
   Edit3,
   Eye,
-  ArrowLeft
+  ArrowLeft,
+  Map as MapIcon,
+  Activity
 } from 'lucide-react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
+
+import GeoHeatmap from './components/geo/GeoHeatmap';
+import RegionalTrends from './components/geo/RegionalTrends';
+import LiveGeoActivity from './components/geo/LiveGeoActivity';
+import VendorTrafficPanel from './components/geo/VendorTrafficPanel';
 
 const API_GATEWAY = 'http://localhost:5000';
 
@@ -177,6 +185,43 @@ function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiv
   const shopProducts = products.filter(p => shop.config?.products?.some(sp => sp.name === p.name));
   const shopOrders = orders.filter(o => o.shop_id === shop.id);
 
+  // Geo Analytics State
+  const [vendorTraffic, setVendorTraffic] = useState([]);
+  const [liveEvents, setLiveEvents] = useState([]);
+  const [hotspots, setHotspots] = useState([]);
+
+  useEffect(() => {
+    // Fetch initial geo data
+    const fetchGeoData = async () => {
+      try {
+        const [trafficRes, hotspotsRes] = await Promise.all([
+          axios.get(`http://localhost:5003/geo/vendor-traffic/${shop.id}?lat=40.7128&lon=-74.0060`), // Mock shop coordinates for demo
+          axios.get(`http://localhost:5003/geo/hotspots`)
+        ]);
+        if (trafficRes.data.success) setVendorTraffic(trafficRes.data.data);
+        if (hotspotsRes.data.success) setHotspots(hotspotsRes.data.data);
+      } catch (err) {
+        console.error("Geo Data Fetch Error:", err);
+      }
+    };
+    fetchGeoData();
+
+    // Socket.io Connection
+    const socket = io('http://localhost:5003');
+    socket.emit('join_vendor', shop.id);
+    
+    socket.on('live_event', (event) => {
+      setLiveEvents(prev => [event, ...prev].slice(0, 50));
+    });
+
+    socket.on('vendor_event', (event) => {
+      // Refresh traffic data when a relevant event happens
+      fetchGeoData();
+    });
+
+    return () => socket.disconnect();
+  }, [shop.id]);
+
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#f1f5f9' }}>
       {/* Sidebar */}
@@ -190,6 +235,7 @@ function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiv
         </div>
         <nav style={{ flex: 1, padding: '1.5rem' }}>
           <SidebarLink icon={<TrendingUp size={18} />} label="Performance" active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} color={primary} />
+          <SidebarLink icon={<MapIcon size={18} />} label="Geo Analytics" active={activeTab === 'geo'} onClick={() => setActiveTab('geo')} color={primary} />
           <SidebarLink icon={<Package size={18} />} label="Products" active={activeTab === 'products'} onClick={() => setActiveTab('products')} color={primary} />
           <SidebarLink icon={<ClipboardList size={18} />} label="Orders" active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} color={primary} />
           <SidebarLink icon={<User size={18} />} label="Customers" active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} color={primary} />
@@ -299,6 +345,32 @@ function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiv
                >
                  <Plus size={24} /> Manage Products
                </button>
+            </div>
+          </div>
+        ) : activeTab === 'geo' ? (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+              <div>
+                <h1 style={{ fontSize: '2rem', fontWeight: '900', color: '#1e293b', margin: 0 }}>Real-Time Geo Analytics</h1>
+                <p style={{ color: '#64748b' }}>Monitor live customer traffic and regional hotspots.</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontWeight: 'bold' }}>
+                 <Activity className="animate-pulse" /> LIVE STREAM
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div className="md:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-2">
+                 <GeoHeatmap hotspots={hotspots} />
+              </div>
+              <div className="h-[416px]">
+                <VendorTrafficPanel vendorTraffic={vendorTraffic} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[400px]">
+              <RegionalTrends hotspots={hotspots} />
+              <LiveGeoActivity liveEvents={liveEvents} />
             </div>
           </div>
         ) : (

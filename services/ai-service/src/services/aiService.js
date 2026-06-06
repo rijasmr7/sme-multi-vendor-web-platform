@@ -162,6 +162,28 @@ const generateShopData = async (businessType, shopName, products = [], theme = "
     }
 };
 
+const pushShopLocation = async (shop) => {
+    if (shop) {
+        try {
+            const axios = require('axios');
+            // Generate a random realistic coordinate for demo purposes (e.g., somewhere in NY)
+            const randomLat = 40.7128 + (Math.random() - 0.5) * 0.1;
+            const randomLon = -74.0060 + (Math.random() - 0.5) * 0.1;
+            
+            const locationServiceUrl = process.env.LOCATION_SERVICE_URL || 'http://location:5007';
+            await axios.post(`${locationServiceUrl}/shops/location`, {
+                shopId: shop.id,
+                shopName: shop.shop_name,
+                lat: randomLat,
+                lon: randomLon
+            });
+            console.log(`[AI Service] Successfully pushed location data for shop ${shop.id} to Location Service.`);
+        } catch (error) {
+            console.error(`[AI Service] Failed to push location to Location Service:`, error.message);
+        }
+    }
+};
+
 const saveShop = async (vendorId, shopName, config, isPublished = false) => {
     const query = `
         INSERT INTO shops (vendor_id, shop_name, config, is_published)
@@ -169,7 +191,11 @@ const saveShop = async (vendorId, shopName, config, isPublished = false) => {
         RETURNING *;
     `;
     const { rows } = await pool.query(query, [vendorId, shopName, JSON.stringify(config), isPublished]);
-    return rows[0];
+    const shop = rows[0];
+    if (shop && isPublished) {
+        await pushShopLocation(shop);
+    }
+    return shop;
 };
 
 const findShopsByVendor = async (vendorId) => {
@@ -186,7 +212,13 @@ const publishShop = async (shopId) => {
         RETURNING *;
     `;
     const { rows } = await pool.query(query, [shopId]);
-    return rows[0];
+    const shop = rows[0];
+
+    if (shop) {
+        await pushShopLocation(shop);
+    }
+
+    return shop;
 };
 
 const getPublishedShops = async () => {

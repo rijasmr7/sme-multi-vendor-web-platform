@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stage, useGLTF, ContactShadows } from '@react-three/drei';
 
@@ -37,8 +38,11 @@ const CameraFallbackAR = ({ modelUrl, onClose }) => {
     };
   }, []);
 
-  return (
-    <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+  return createPortal(
+    <div 
+      className="fixed inset-0 bg-black flex flex-col" 
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh', zIndex: 999999 }}
+    >
       {/* Top Bar */}
       <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-center z-20 bg-gradient-to-b from-black/60 to-transparent">
         <span className="text-white font-semibold text-lg drop-shadow-md">AR Preview</span>
@@ -75,7 +79,7 @@ const CameraFallbackAR = ({ modelUrl, onClose }) => {
           <ambientLight intensity={1.5} />
           <directionalLight position={[5, 10, 5]} intensity={1} />
           <Suspense fallback={null}>
-            <Stage intensity={0.5} environment="city" preset="rembrandt" adjustCamera={false}>
+            <Stage intensity={0.5} environment="city" preset="rembrandt" adjustCamera>
               <Model url={modelUrl} />
             </Stage>
             <ContactShadows position={[0, -1.5, 0]} opacity={0.5} scale={10} blur={2} />
@@ -90,7 +94,8 @@ const CameraFallbackAR = ({ modelUrl, onClose }) => {
           Drag to rotate • Pinch to scale
         </span>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

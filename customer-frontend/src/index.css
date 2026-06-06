@@ -30,6 +30,29 @@ body {
   overflow-x: hidden;
 }
 
+/* Custom Leaflet Map Styles */
+.leaflet-container {
+  font-family: 'Outfit', sans-serif;
+}
+.vendor-custom-popup .leaflet-popup-content-wrapper {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 20px;
+  box-shadow: 0 20px 40px -10px rgba(249, 115, 22, 0.25);
+  padding: 4px;
+}
+.vendor-custom-popup .leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+}
+.vendor-custom-popup .leaflet-popup-close-button {
+  color: #f97316 !important;
+  font-weight: bold;
+  padding: 8px !important;
+}
+
+
 .app-container {
   min-height: 100vh;
   display: flex;

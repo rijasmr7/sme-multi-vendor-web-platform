@@ -18,6 +18,7 @@ services:
       - ORDER_SERVICE_URL=http://order:5005
       - RECOMMENDER_SERVICE_URL=http://recommender:8008
       - WEBAR_SERVICE_URL=http://webar:5006
+      - LOCATION_SERVICE_URL=http://location:5007
     depends_on:
       - product
       - ai
@@ -26,6 +27,7 @@ services:
       - order
       - recommender
       - webar
+      - location
 
   product:
     build: ./services/product-service
@@ -73,11 +75,14 @@ services:
       - "5003:5003"
     env_file:
       - ./services/analytics-service/.env
+    environment:
+      - REDIS_URL=redis://redis:6379
     volumes:
       - ./services/analytics-service:/app
       - /app/node_modules
     depends_on:
       - postgres
+      - redis
 
   order:
     build: ./services/order-service
@@ -116,8 +121,23 @@ services:
       - /app/node_modules
     depends_on:
       - postgres
+
+  location:
+    build: ./services/location-service
+    container_name: sme_location_service
+    ports:
+      - "5007:5007"
+    env_file:
+      - ./services/location-service/.env
+    volumes:
+      - ./services/location-service:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      network: host
     container_name: sme_frontend
     ports:
       - "5173:5173"
@@ -140,7 +160,7 @@ services:
 
 
   postgres:
-    image: postgres:15-alpine
+    image: postgis/postgis:15-3.3-alpine
     container_name: sme_postgres
     restart: always
     environment:
@@ -161,5 +181,15 @@ services:
     depends_on:
       - postgres
 
+  redis:
+    image: redis:7-alpine
+    container_name: sme_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
 volumes:
   postgres_data:
+  redis_data:

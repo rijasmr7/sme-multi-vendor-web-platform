@@ -443,7 +443,30 @@ app.get('/stats', async (req, res) => {
     }
 });
 
-// -------------------------------------------------------------
+// =============================================================
+// LOCATION SERVICE ROUTES
+// =============================================================
+
+app.use('/location', async (req, res) => {
+    try {
+        const method = req.method.toLowerCase();
+        console.log(`>>> [Gateway] Forwarding ${req.method} /location${req.url}`);
+        
+        const url = `${process.env.LOCATION_SERVICE_URL || 'http://localhost:5007'}/shops${req.url}`;
+        
+        const response = await axios({
+            method: method,
+            url: url,
+            data: req.body,
+            params: req.query,
+            headers: { Authorization: req.headers['authorization'] }
+        });
+        
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Location Service');
+    }
+});
 // START SERVER
 // -------------------------------------------------------------
 app.listen(PORT, () => {

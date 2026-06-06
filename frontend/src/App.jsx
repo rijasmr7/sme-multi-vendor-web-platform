@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Sparkles, LogIn, LogOut, Package } from 'lucide-react';
+import { LayoutDashboard, Sparkles, LogIn, LogOut, Package, Activity } from 'lucide-react';
 import Generator from './Generator';
 import Dashboard from './Dashboard';
 import VendorAuth from './VendorAuth';
+import LiveDashboard from './components/LiveDashboard';
 import ProductDashboard from './ProductDashboard';
 import './index.css';
 
@@ -107,6 +108,11 @@ function App() {
                 <LayoutDashboard size={18} />
                 Vendor Dashboard
               </Link>
+              <div style={{ width: '1px', height: '20px', background: '#e2e8f0' }}></div>
+              <Link to="/live-dashboard" style={navLink('/live-dashboard')}>
+                <Activity size={18} />
+                Live Analytics
+              </Link>
             </>
           )}
 
@@ -138,6 +144,10 @@ function App() {
             <Route 
               path="/dashboard" 
               element={<Dashboard primaryColor={primaryColor} />} 
+            />
+            <Route 
+              path="/live-dashboard" 
+              element={<LiveDashboard />} 
             />
             <Route 
               path="/:shopId/dashboard" 
