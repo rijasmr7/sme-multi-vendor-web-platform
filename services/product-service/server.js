@@ -41,8 +41,10 @@ CREATE TABLE IF NOT EXISTS products (
     name TEXT NOT NULL,
     price NUMERIC NOT NULL,
     category TEXT NOT NULL,
+    description TEXT,
     extra_data JSONB
 );
+ALTER TABLE products ADD COLUMN IF NOT EXISTS description TEXT;
 `;
 
 pool.query(createTableQuery)
@@ -52,7 +54,7 @@ pool.query(createTableQuery)
 
 app.post('/products', async (req, res) => {
     console.log(`[POST] /products - Request Body:`, req.body);
-    const { vendorId, name, price, category, extraData } = req.body;
+    const { vendorId, name, price, category, extraData, description } = req.body;
 
     // 1. Basic Validation
     if (!vendorId || !name || price === undefined || !category) {
@@ -77,11 +79,11 @@ app.post('/products', async (req, res) => {
     // 3. Database Operation
     try {
         const query = `
-            INSERT INTO products (vendor_id, name, price, category, extra_data)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO products (vendor_id, name, price, category, description, extra_data)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING *;
         `;
-        const { rows } = await pool.query(query, [vendorId, name, price, category, extraData ? JSON.stringify(extraData) : null]);
+        const { rows } = await pool.query(query, [vendorId, name, price, category, description || null, extraData ? JSON.stringify(extraData) : null]);
 
         
         console.log(`[POST] /products - Success`);
@@ -114,7 +116,7 @@ app.get('/products/vendor/:vendorId', async (req, res) => {
 
 app.put('/products/:id', async (req, res) => {
     const { id } = req.params;
-    const { name, price, category, extraData } = req.body;
+    const { name, price, category, description, extraData } = req.body;
 
     // Validation for partial updates
     if (price !== undefined && (isNaN(price) || Number(price) < 0)) {
@@ -127,11 +129,12 @@ app.put('/products/:id', async (req, res) => {
             SET name = COALESCE($1, name),
                 price = COALESCE($2, price),
                 category = COALESCE($3, category),
-                extra_data = COALESCE($4, extra_data)
-            WHERE id = $5
+                description = COALESCE($4, description),
+                extra_data = COALESCE($5, extra_data)
+            WHERE id = $6
             RETURNING *;
         `;
-        const { rows } = await pool.query(query, [name, price, category, extraData ? JSON.stringify(extraData) : null, id]);
+        const { rows } = await pool.query(query, [name, price, category, description, extraData ? JSON.stringify(extraData) : null, id]);
 
         if (rows.length === 0) return sendError(res, 'Product not found', 404);
         sendSuccess(res, rows[0]);

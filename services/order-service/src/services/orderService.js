@@ -141,10 +141,65 @@ const getLastDeliveryAddress = async (customerId) => {
     return rows.length > 0 ? rows[0] : null;
 };
 
+const getAllOrdersAdmin = async () => {
+    const query = `
+        SELECT o.*, 
+               da.customer_name, da.customer_phone, da.address_line, da.city, da.zip_code
+        FROM orders o
+        LEFT JOIN delivery_address da ON o.id = da.order_id
+        ORDER BY o.created_at DESC;
+    `;
+    const { rows } = await pool.query(query);
+    return rows;
+};
+
+const updateOrderAdmin = async (orderId, updateData) => {
+    const { status, quantity, total_price, delivery_type, customer_name, customer_phone, address_line, city, zip_code } = updateData;
+    
+    // Update order
+    const query = `
+        UPDATE orders
+        SET status = COALESCE($1, status),
+            quantity = COALESCE($2, quantity),
+            total_price = COALESCE($3, total_price),
+            delivery_type = COALESCE($4, delivery_type),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $5
+        RETURNING *;
+    `;
+    const { rows } = await pool.query(query, [status, quantity, total_price, delivery_type, orderId]);
+    const order = rows[0];
+
+    if (order && (customer_name || customer_phone || address_line || city || zip_code)) {
+        // Update delivery address
+        const addressQuery = `
+            UPDATE delivery_address
+            SET customer_name = COALESCE($1, customer_name),
+                customer_phone = COALESCE($2, customer_phone),
+                address_line = COALESCE($3, address_line),
+                city = COALESCE($4, city),
+                zip_code = COALESCE($5, zip_code)
+            WHERE order_id = $6
+            RETURNING *;
+        `;
+        await pool.query(addressQuery, [customer_name, customer_phone, address_line, city, zip_code, orderId]);
+    }
+    return order;
+};
+
+const deleteOrderAdmin = async (orderId) => {
+    const query = `DELETE FROM orders WHERE id = $1 RETURNING *;`;
+    const { rows } = await pool.query(query, [orderId]);
+    return rows[0];
+};
+
 module.exports = {
     createOrder,
     updateOrderStatus,
     getOrdersByCustomer,
     getOrdersByVendor,
-    getLastDeliveryAddress
+    getLastDeliveryAddress,
+    getAllOrdersAdmin,
+    updateOrderAdmin,
+    deleteOrderAdmin
 };

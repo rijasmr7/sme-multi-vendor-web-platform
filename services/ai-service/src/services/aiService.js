@@ -166,16 +166,28 @@ const pushShopLocation = async (shop) => {
     if (shop) {
         try {
             const axios = require('axios');
-            // Generate a random realistic coordinate for demo purposes (e.g., somewhere in NY)
-            const randomLat = 40.7128 + (Math.random() - 0.5) * 0.1;
-            const randomLon = -74.0060 + (Math.random() - 0.5) * 0.1;
+            
+            let lat, lon;
+            if (shop.location) {
+                const locObj = typeof shop.location === 'string' ? JSON.parse(shop.location) : shop.location;
+                if (locObj && locObj.lat !== undefined && (locObj.lon !== undefined || locObj.lng !== undefined)) {
+                    lat = parseFloat(locObj.lat);
+                    lon = parseFloat(locObj.lon || locObj.lng);
+                }
+            }
+            
+            // If no location was given, do not set default hardcoded location, keep it null
+            if (lat === undefined || lon === undefined) {
+                console.log(`[AI Service] No location provided for shop ${shop.id}. Skipping Location Service update.`);
+                return;
+            }
             
             const locationServiceUrl = process.env.LOCATION_SERVICE_URL || 'http://location:5007';
             await axios.post(`${locationServiceUrl}/shops/location`, {
                 shopId: shop.id,
                 shopName: shop.shop_name,
-                lat: randomLat,
-                lon: randomLon
+                lat: lat,
+                lon: lon
             });
             console.log(`[AI Service] Successfully pushed location data for shop ${shop.id} to Location Service.`);
         } catch (error) {
@@ -184,13 +196,19 @@ const pushShopLocation = async (shop) => {
     }
 };
 
-const saveShop = async (vendorId, shopName, config, isPublished = false) => {
+const saveShop = async (vendorId, shopName, config, isPublished = false, location = null) => {
     const query = `
-        INSERT INTO shops (vendor_id, shop_name, config, is_published)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO shops (vendor_id, shop_name, config, is_published, location)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING *;
     `;
-    const { rows } = await pool.query(query, [vendorId, shopName, JSON.stringify(config), isPublished]);
+    const { rows } = await pool.query(query, [
+        vendorId, 
+        shopName, 
+        JSON.stringify(config), 
+        isPublished, 
+        location ? JSON.stringify(location) : null
+    ]);
     const shop = rows[0];
     if (shop && isPublished) {
         await pushShopLocation(shop);
@@ -228,7 +246,8 @@ const getPublishedShops = async () => {
 };
 
 const getPublicShops = async () => {
-    const query = `SELECT id, vendor_id, shop_name, config FROM shops WHERE is_published = true ORDER BY created_at DESC;`;
+    // 🔒 Security Check: Only display shops that are published AND approved by admin
+    const query = `SELECT id, vendor_id, shop_name, config, location FROM shops WHERE is_published = true AND is_approved = true ORDER BY created_at DESC;`;
     const { rows } = await pool.query(query);
     
     return rows.map(shop => ({
@@ -237,12 +256,14 @@ const getPublicShops = async () => {
         shopName: shop.shop_name,
         navigation: shop.config?.navigation || [],
         products: shop.config?.products || [],
-        theme: shop.config?.theme || {}
+        theme: shop.config?.theme || {},
+        location: shop.location || null
     }));
 };
 
 const getPublicShopById = async (id) => {
-    const query = `SELECT id, vendor_id, shop_name, config FROM shops WHERE id = $1 AND is_published = true;`;
+    // 🔒 Security Check: Only allow viewing a shop if it is published AND approved
+    const query = `SELECT id, vendor_id, shop_name, config, location FROM shops WHERE id = $1 AND is_published = true AND is_approved = true;`;
     const { rows } = await pool.query(query, [id]);
     
     if (rows.length === 0) return null;
@@ -254,8 +275,66 @@ const getPublicShopById = async (id) => {
         shopName: shop.shop_name,
         navigation: shop.config?.navigation || [],
         products: shop.config?.products || [],
-        theme: shop.config?.theme || {}
+        theme: shop.config?.theme || {},
+        location: shop.location || null
     };
+};
+
+const findAllShopsAdmin = async () => {
+    const query = `SELECT * FROM shops ORDER BY id DESC;`;
+    const { rows } = await pool.query(query);
+    return rows;
+};
+
+const toggleShopApproval = async (shopId, isApproved) => {
+    const query = `
+        UPDATE shops 
+        SET is_approved = $1 
+        WHERE id = $2 
+        RETURNING *;
+    `;
+    const { rows } = await pool.query(query, [isApproved, shopId]);
+    return rows[0];
+};
+
+const updateShopAdmin = async (shopId, updateData) => {
+    const { shop_name, config, is_published, is_approved, location } = updateData;
+    const query = `
+        UPDATE shops
+        SET shop_name = COALESCE($1, shop_name),
+            config = COALESCE($2, config),
+            is_published = COALESCE($3, is_published),
+            is_approved = COALESCE($4, is_approved),
+            location = COALESCE($5, location)
+        WHERE id = $6
+        RETURNING *;
+    `;
+    const { rows } = await pool.query(query, [
+        shop_name,
+        config ? JSON.stringify(config) : null,
+        is_published,
+        is_approved,
+        location ? JSON.stringify(location) : null,
+        shopId
+    ]);
+    return rows[0];
+};
+
+const deleteShopAdmin = async (shopId) => {
+    const query = `DELETE FROM shops WHERE id = $1 RETURNING *;`;
+    const { rows } = await pool.query(query, [shopId]);
+    const shop = rows[0];
+    if (shop) {
+        try {
+            const axios = require('axios');
+            const locationServiceUrl = process.env.LOCATION_SERVICE_URL || 'http://location:5007';
+            await axios.delete(`${locationServiceUrl}/shops/${shopId}/location`);
+            console.log(`[AI Service] Cleaned up location for deleted shop ${shopId}`);
+        } catch (error) {
+            console.error(`[AI Service] Failed to clean up location for shop ${shopId}:`, error.message);
+        }
+    }
+    return shop;
 };
 
 module.exports = {
@@ -265,5 +344,9 @@ module.exports = {
     publishShop,
     getPublishedShops,
     getPublicShops,
-    getPublicShopById
+    getPublicShopById,
+    findAllShopsAdmin,
+    toggleShopApproval,
+    updateShopAdmin,
+    deleteShopAdmin
 };

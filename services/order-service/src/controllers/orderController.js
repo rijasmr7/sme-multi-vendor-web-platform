@@ -140,11 +140,48 @@ const getAllOrdersInternal = async (req, res) => {
     }
 };
 
+const getAllOrdersAdmin = async (req, res) => {
+    try {
+        const orders = await orderService.getAllOrdersAdmin();
+        sendSuccess(res, orders, 200);
+    } catch (error) {
+        console.error('Fetch Admin Orders Error:', error.message);
+        sendError(res, 'Failed to fetch all orders', 500);
+    }
+};
+
+const updateOrderAdmin = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const order = await orderService.updateOrderAdmin(id, req.body);
+        if (!order) return sendError(res, 'Order not found', 404);
+        sendSuccess(res, order, 200);
+    } catch (error) {
+        console.error('Admin Update Order Error:', error.message);
+        sendError(res, 'Failed to update order', 500);
+    }
+};
+
+const deleteOrderAdmin = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const order = await orderService.deleteOrderAdmin(id);
+        if (!order) return sendError(res, 'Order not found', 404);
+        sendSuccess(res, { message: 'Order deleted successfully', order }, 200);
+    } catch (error) {
+        console.error('Admin Delete Order Error:', error.message);
+        sendError(res, 'Failed to delete order', 500);
+    }
+};
+
 module.exports = {
     placeOrder,
     updateStatus,
     getCustomerOrders,
     getVendorOrders,
     getDeliveryAddress,
-    getAllOrdersInternal
+    getAllOrdersInternal,
+    getAllOrdersAdmin,
+    updateOrderAdmin,
+    deleteOrderAdmin
 };

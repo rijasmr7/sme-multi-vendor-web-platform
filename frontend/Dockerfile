@@ -8,4 +8,4 @@ RUN npm config set fetch-retry-maxtimeout 120000 && \
 COPY . .
 EXPOSE 5173
 # Expose to 0.0.0.0 to ensure it routes successfully over Docker bridge networks
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--force"]

@@ -96,7 +96,9 @@ app.post('/customer/login', async (req, res) => {
 app.post('/products', async (req, res) => {
     try {
         console.log(`>>> [Gateway] Forwarding POST /products to Product Service`);
-        const response = await axios.post(`${SERVICES.product}/products`, req.body);
+        const response = await axios.post(`${SERVICES.product}/products`, req.body, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
         res.status(response.status).json(response.data);
     } catch (error) {
         handleError(res, error, 'Product Service');
@@ -119,7 +121,9 @@ app.get('/products/vendor/:vendorId', async (req, res) => {
     try {
         const vendorId = req.params.vendorId;
         console.log(`>>> [Gateway] Forwarding GET /products/vendor/${vendorId}`);
-        const response = await axios.get(`${SERVICES.product}/products/vendor/${vendorId}`);
+        const response = await axios.get(`${SERVICES.product}/products/vendor/${vendorId}`, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
         res.status(response.status).json(response.data);
     } catch (error) {
         handleError(res, error, 'Product Service');
@@ -144,7 +148,9 @@ app.put('/products/:id', async (req, res) => {
         const id = req.params.id;
         console.log(`>>> [Gateway] Forwarding PUT /products/${id}`);
         // We must pass req.body here so the product service knows WHAT to update
-        const response = await axios.put(`${SERVICES.product}/products/${id}`, req.body);
+        const response = await axios.put(`${SERVICES.product}/products/${id}`, req.body, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
         res.status(response.status).json(response.data);
     } catch (error) {
         handleError(res, error, 'Product Service');
@@ -156,7 +162,9 @@ app.delete('/products/:id', async (req, res) => {
     try {
         const id = req.params.id;
         console.log(`>>> [Gateway] Forwarding DELETE /products/${id}`);
-        const response = await axios.delete(`${SERVICES.product}/products/${id}`);
+        const response = await axios.delete(`${SERVICES.product}/products/${id}`, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
         res.status(response.status).json(response.data);
     } catch (error) {
         handleError(res, error, 'Product Service');
@@ -494,6 +502,86 @@ app.use('/location', async (req, res) => {
         handleError(res, error, 'Location Service');
     }
 });
+// =============================================================
+// ADMIN PROXY ROUTES
+// =============================================================
+
+// User admin endpoints
+app.use('/admin/users', async (req, res) => {
+    try {
+        const method = req.method.toLowerCase();
+        const subpath = req.url === '/' ? '' : req.url;
+        console.log(`>>> [Gateway] Forwarding ${req.method} /admin/users${subpath}`);
+        const response = await axios({
+            method: method,
+            url: `${SERVICES.user}/admin/users${subpath}`,
+            data: req.body,
+            params: req.query,
+            headers: { Authorization: req.headers['authorization'] }
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'User Service (Admin)');
+    }
+});
+
+// Shop admin endpoints
+app.use('/admin/shops', async (req, res) => {
+    try {
+        const method = req.method.toLowerCase();
+        const subpath = req.url === '/' ? '' : req.url;
+        console.log(`>>> [Gateway] Forwarding ${req.method} /admin/shops${subpath}`);
+        const response = await axios({
+            method: method,
+            url: `${SERVICES.ai}/admin/shops${subpath}`,
+            data: req.body,
+            params: req.query,
+            headers: { Authorization: req.headers['authorization'] }
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'AI Service (Admin)');
+    }
+});
+
+// Product admin endpoints
+app.use('/admin/products', async (req, res) => {
+    try {
+        const method = req.method.toLowerCase();
+        const subpath = req.url === '/' ? '' : req.url;
+        console.log(`>>> [Gateway] Forwarding ${req.method} /admin/products${subpath}`);
+        const response = await axios({
+            method: method,
+            url: `${SERVICES.product}/products/admin/products${subpath}`,
+            data: req.body,
+            params: req.query,
+            headers: { Authorization: req.headers['authorization'] }
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Product Service (Admin)');
+    }
+});
+
+// Order admin endpoints
+app.use('/admin/orders', async (req, res) => {
+    try {
+        const method = req.method.toLowerCase();
+        const subpath = req.url === '/' ? '' : req.url;
+        console.log(`>>> [Gateway] Forwarding ${req.method} /admin/orders${subpath}`);
+        const response = await axios({
+            method: method,
+            url: `${SERVICES.order}/orders/admin/orders${subpath}`,
+            data: req.body,
+            params: req.query,
+            headers: { Authorization: req.headers['authorization'] }
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Order Service (Admin)');
+    }
+});
+
 // START SERVER
 // -------------------------------------------------------------
 app.listen(PORT, () => {

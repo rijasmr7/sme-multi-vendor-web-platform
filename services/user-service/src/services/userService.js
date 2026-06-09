@@ -81,10 +81,51 @@ const verifyPassword = async (plainPassword, hashedPassword) => {
     return await bcrypt.compare(plainPassword, hashedPassword);
 };
 
+const findAllUsersAdmin = async () => {
+    const query = `SELECT id, name, email, phone, shop_name, role, city FROM users ORDER BY id DESC;`;
+    const { rows } = await pool.query(query);
+    return rows;
+};
+
+const updateUser = async (id, userData) => {
+    const { name, email, phone, shop_name, role, city, password } = userData;
+    let query;
+    let params;
+    if (password) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        query = `
+            UPDATE users 
+            SET name = $1, email = $2, phone = $3, shop_name = $4, role = $5, city = $6, password = $7
+            WHERE id = $8
+            RETURNING id, name, email, phone, shop_name, role, city;
+        `;
+        params = [name, email || null, phone || null, shop_name || 'My Shop', role || 'vendor', city || 'Unknown', hashedPassword, id];
+    } else {
+        query = `
+            UPDATE users 
+            SET name = $1, email = $2, phone = $3, shop_name = $4, role = $5, city = $6
+            WHERE id = $7
+            RETURNING id, name, email, phone, shop_name, role, city;
+        `;
+        params = [name, email || null, phone || null, shop_name || 'My Shop', role || 'vendor', city || 'Unknown', id];
+    }
+    const { rows } = await pool.query(query, params);
+    return rows[0];
+};
+
+const deleteUser = async (id) => {
+    const query = `DELETE FROM users WHERE id = $1 RETURNING id, name;`;
+    const { rows } = await pool.query(query, [id]);
+    return rows[0];
+};
+
 module.exports = {
     findByEmailOrPhone,
     findById,
     createUser,
     verifyPassword,
-    findAllUsers
+    findAllUsers,
+    findAllUsersAdmin,
+    updateUser,
+    deleteUser
 };

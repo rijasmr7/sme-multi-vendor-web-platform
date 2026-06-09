@@ -29,8 +29,20 @@ pool.query(createTableQuery)
             await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS shop_name TEXT DEFAULT 'My Shop'");
             await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'vendor'");
             await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS city TEXT DEFAULT 'Unknown'");
+
+            // Seed Admin User
+            const adminCheck = await pool.query("SELECT * FROM users WHERE role = 'admin' LIMIT 1;");
+            if (adminCheck.rows.length === 0) {
+                const bcrypt = require('bcrypt');
+                const adminPasswordHash = await bcrypt.hash('adminpassword', 10);
+                await pool.query(`
+                    INSERT INTO users (name, email, phone, shop_name, password, role, city)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7);
+                `, ['System Admin', 'admin@sme.com', '0000000000', 'Admin Workspace', adminPasswordHash, 'admin', 'Colombo']);
+                console.log('✓ Seeded default admin user: admin@sme.com / adminpassword');
+            }
         } catch (err) {
-            // Silently ignore migration issues
+            console.error('Migration/Seeding error:', err);
         }
     })
     .catch(err => console.error('Database connection error:', err));

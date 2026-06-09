@@ -82,6 +82,12 @@ class GeoService {
             distanceKm: parseFloat((row.distance_meters / 1000).toFixed(2))
         };
     }
+
+    async deleteShopLocation(shopId) {
+        const query = `DELETE FROM shop_locations WHERE shop_id = $1 RETURNING *;`;
+        const { rows } = await pool.query(query, [shopId]);
+        return rows[0];
+    }
 }
 
 module.exports = new GeoService();

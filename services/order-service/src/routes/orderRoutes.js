@@ -33,6 +33,28 @@ router.get(
     orderController.getAllOrdersInternal
 );
 
+// --- ADMIN ROUTES ---
+router.get(
+    '/admin/orders',
+    authenticateToken,
+    authorizeRole('admin'),
+    orderController.getAllOrdersAdmin
+);
+
+router.put(
+    '/admin/orders/:id',
+    authenticateToken,
+    authorizeRole('admin'),
+    orderController.updateOrderAdmin
+);
+
+router.delete(
+    '/admin/orders/:id',
+    authenticateToken,
+    authorizeRole('admin'),
+    orderController.deleteOrderAdmin
+);
+
 
 // GET CUSTOMER DELIVERY ADDRESS
 router.get(

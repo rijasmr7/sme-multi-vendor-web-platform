@@ -9,7 +9,7 @@ const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://localhost:5004'
  */
 
 const createProduct = async (req, res) => {
-    const { name, price, category, extraData } = req.body;
+    const { name, price, category, extraData, description } = req.body;
     const vendorId = req.userId; // 🔒 Securely extracted from JWT
 
     // 1. Validation
@@ -32,7 +32,7 @@ const createProduct = async (req, res) => {
 
     // 3. Service Call
     try {
-        const product = await productService.createProduct({ vendorId, name, price, category, extraData });
+        const product = await productService.createProduct({ vendorId, name, price, category, description, extraData });
         sendSuccess(res, product, 201);
     } catch (error) {
         sendError(res, 'Database error during product creation');
@@ -66,14 +66,14 @@ const getVendorProducts = async (req, res) => {
 
 const updateProduct = async (req, res) => {
     const { id } = req.params;
-    const { name, price, category, extraData } = req.body;
+    const { name, price, category, extraData, description } = req.body;
 
     if (price !== undefined && (isNaN(price) || Number(price) < 0)) {
         return sendError(res, 'Invalid price format', 400);
     }
 
     try {
-        const product = await productService.updateProduct(id, { name, price, category, extraData });
+        const product = await productService.updateProduct(id, { name, price, category, extraData, description });
         if (!product) return sendError(res, 'Product not found', 404);
         sendSuccess(res, product);
     } catch (error) {
@@ -102,11 +102,79 @@ const getPublicVendorProducts = async (req, res) => {
     }
 };
 
+const getAllProductsAdmin = async (req, res) => {
+    try {
+        const products = await productService.getAllProducts();
+        sendSuccess(res, products);
+    } catch (error) {
+        sendError(res, 'Failed to fetch all products');
+    }
+};
+
+const createProductAdmin = async (req, res) => {
+    const { vendorId, name, price, category, extraData, description } = req.body;
+
+    if (!vendorId || !name || price === undefined || !category) {
+        return sendError(res, 'Missing required product fields (vendorId, name, price, category)', 400);
+    }
+    if (isNaN(price) || Number(price) < 0) {
+        return sendError(res, 'Invalid price format', 400);
+    }
+
+    try {
+        await axios.get(`${USER_SERVICE_URL}/users/${vendorId}`);
+    } catch (error) {
+        if (error.response && error.response.status === 404) {
+            return sendError(res, 'Invalid vendor: User not found', 400);
+        }
+        return sendError(res, 'Validation error: User service unreachable', 503);
+    }
+
+    try {
+        const product = await productService.createProduct({ vendorId, name, price, category, description, extraData });
+        sendSuccess(res, product, 201);
+    } catch (error) {
+        sendError(res, 'Database error during product creation');
+    }
+};
+
+const updateProductAdmin = async (req, res) => {
+    const { id } = req.params;
+    const { name, price, category, description, extraData } = req.body;
+
+    if (price !== undefined && (isNaN(price) || Number(price) < 0)) {
+        return sendError(res, 'Invalid price format', 400);
+    }
+
+    try {
+        const product = await productService.updateProduct(id, { name, price, category, description, extraData });
+        if (!product) return sendError(res, 'Product not found', 404);
+        sendSuccess(res, product);
+    } catch (error) {
+        sendError(res, 'Failed to update product');
+    }
+};
+
+const deleteProductAdmin = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const product = await productService.deleteProduct(id);
+        if (!product) return sendError(res, 'Product not found', 404);
+        sendSuccess(res, { message: 'Deleted successfully', product });
+    } catch (error) {
+        sendError(res, 'Failed to delete product');
+    }
+};
+
 module.exports = {
     createProduct,
     getAllProducts,
     getVendorProducts,
     getPublicVendorProducts,
     updateProduct,
-    deleteProduct
+    deleteProduct,
+    getAllProductsAdmin,
+    createProductAdmin,
+    updateProductAdmin,
+    deleteProductAdmin
 };

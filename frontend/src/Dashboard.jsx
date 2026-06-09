@@ -131,7 +131,8 @@ function Dashboard() {
 // VIEW 1: SELECTION PAGE (Full Screen)
 // ==========================================
 function SelectionPage({ shops, onSelect }) {
-  const published = shops.filter(s => s.is_published);
+  const liveAndApproved = shops.filter(s => s.is_published && s.is_approved);
+  const pendingApproval = shops.filter(s => s.is_published && !s.is_approved);
   const drafts = shops.filter(s => !s.is_published);
 
   return (
@@ -143,16 +144,30 @@ function SelectionPage({ shops, onSelect }) {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '3rem' }}>
-          {/* LIVE SHOPS */}
+          {/* LIVE & ACTIVE SHOPS */}
           <section>
             <h2 style={{ fontSize: '1rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Rocket size={18} style={{ color: '#10b981' }} /> Published & Live
             </h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-              {published.length > 0 ? published.map(shop => (
+              {liveAndApproved.length > 0 ? liveAndApproved.map(shop => (
                 <SelectionCard key={shop.id} shop={shop} onClick={() => onSelect(shop)} type="live" />
               )) : (
-                <EmptyCard message="No shops live yet. Complete a draft to publish!" />
+                <EmptyCard message="No shops live yet. Complete approval to go live!" />
+              )}
+            </div>
+          </section>
+
+          {/* PENDING APPROVAL SHOPS */}
+          <section>
+            <h2 style={{ fontSize: '1rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Clock size={18} style={{ color: '#3b82f6' }} /> Pending Admin Approval
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+              {pendingApproval.length > 0 ? pendingApproval.map(shop => (
+                <SelectionCard key={shop.id} shop={shop} onClick={() => onSelect(shop)} type="pending" />
+              )) : (
+                <EmptyCard message="No shops currently pending approval." />
               )}
             </div>
           </section>
@@ -231,7 +246,11 @@ function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiv
              <ArrowLeft size={14} /> Switch Shop
            </button>
            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '900', color: '#1e293b' }}>{shop.shop_name}</h2>
-           <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: '700' }}>● LIVE STORE</span>
+           {shop.is_approved ? (
+             <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: '700' }}>● LIVE STORE</span>
+           ) : (
+             <span style={{ fontSize: '0.75rem', color: '#3b82f6', fontWeight: '700' }}>● PENDING APPROVAL</span>
+           )}
         </div>
         <nav style={{ flex: 1, padding: '1.5rem' }}>
           <SidebarLink icon={<TrendingUp size={18} />} label="Performance" active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} color={primary} />
@@ -503,7 +522,13 @@ function DraftShopDashboard({ shop, onBack, activeTab, setActiveTab }) {
 // ==========================================
 
 function SelectionCard({ shop, onClick, type }) {
-  const color = type === 'live' ? '#10b981' : '#f59e0b';
+  const color = type === 'live' ? '#10b981' : type === 'pending' ? '#3b82f6' : '#f59e0b';
+  const description = type === 'live' 
+    ? 'View live performance' 
+    : type === 'pending' 
+      ? 'Awaiting admin approval' 
+      : 'Complete configuration';
+      
   return (
     <div 
       onClick={onClick}
@@ -516,7 +541,7 @@ function SelectionCard({ shop, onClick, type }) {
       </div>
       <div style={{ flex: 1 }}>
         <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: '#1e293b' }}>{shop.shop_name}</h3>
-        <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>{type === 'live' ? 'View live performance' : 'Complete configuration'}</p>
+        <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>{description}</p>
       </div>
       <ChevronRight size={20} style={{ color: '#cbd5e1' }} />
     </div>

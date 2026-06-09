@@ -6,6 +6,11 @@ import Dashboard from './Dashboard';
 import VendorAuth from './VendorAuth';
 import LiveDashboard from './components/LiveDashboard';
 import ProductDashboard from './ProductDashboard';
+import Navbar from './components/Navbar';
+import Footer from './components/Footer';
+import LandingPage from './pages/LandingPage';
+import Features from './pages/Features';
+import HowItWorks from './pages/HowItWorks';
 import './index.css';
 
 function App() {
@@ -81,115 +86,69 @@ function App() {
   });
 
   return (
-    <div className="main-wrapper">
-      {/* GLOBAL NAVIGATION BAR — only visible when logged in */}
-      {vendor && (
-        <nav className="global-nav" style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center',
-          gap: '20px', 
-          padding: '1rem', 
-          background: 'white', 
-          borderBottom: '1px solid #e2e8f0',
-          position: 'sticky',
-          top: 0,
-          zIndex: 1000
-        }}>
-          <Link to="/" style={navLink('/')}>
-            <Sparkles size={18} />
-            Shop Generator
-          </Link>
-          
-          {hasShop && (
-            <>
-              <div style={{ width: '1px', height: '20px', background: '#e2e8f0' }}></div>
-              <Link to="/dashboard" style={navLink('/dashboard')}>
-                <LayoutDashboard size={18} />
-                Vendor Dashboard
-              </Link>
-              <div style={{ width: '1px', height: '20px', background: '#e2e8f0' }}></div>
-              <Link to="/live-dashboard" style={navLink('/live-dashboard')}>
-                <Activity size={18} />
-                Live Analytics
-              </Link>
-            </>
-          )}
+    <div className="main-wrapper flex flex-col min-h-screen">
+      <Navbar 
+        vendor={vendor} 
+        hasShop={hasShop} 
+        handleLogout={handleLogout} 
+        primaryColor={primaryColor} 
+      />
 
-          <div style={{ width: '1px', height: '20px', background: '#e2e8f0' }}></div>
-          <button
-            id="nav-logout-btn"
-            onClick={handleLogout}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: '#64748b', fontFamily: 'inherit', fontSize: '0.9rem', fontWeight: 500,
-            }}
-          >
-            <LogOut size={18} />
-            Logout
-          </button>
-        </nav>
-      )}
+      <div className="flex-grow">
+        <Routes>
+          {/* Public routes */}
+          <Route path="/features" element={<><Features /><Footer /></>} />
+          <Route path="/how-it-works" element={<><HowItWorks /><Footer /></>} />
 
-      {/* PAGE CONTENT */}
-      <Routes>
-        {vendor ? (
-          <>
-            {/* Logged-in routes */}
-            <Route 
-              path="/" 
-              element={<Generator primaryColor={primaryColor} setPrimaryColor={setPrimaryColor} onShopGenerated={handleShopGenerated} />} 
-            />
-            <Route 
-              path="/dashboard" 
-              element={<Dashboard primaryColor={primaryColor} />} 
-            />
-            <Route 
-              path="/live-dashboard" 
-              element={<LiveDashboard />} 
-            />
-            <Route 
-              path="/:shopId/dashboard" 
-              element={<Dashboard primaryColor={primaryColor} />} 
-            />
-            <Route 
-              path="/products" 
-              element={<ProductDashboard />} 
-            />
-            {/* If logged in and visits auth pages, redirect to home */}
-            <Route path="/register" element={<Navigate to="/" replace />} />
-            <Route path="/login" element={<Navigate to="/" replace />} />
-            <Route path="/auth" element={<Navigate to="/" replace />} />
-          </>
-        ) : (
-          <>
-            {/* Not logged-in: show auth pages only */}
-            <Route
-              path="/"
-              element={<VendorAuth onLogin={handleLogin} defaultMode="register" />}
-            />
-            <Route
-              path="/register"
-              element={<VendorAuth onLogin={handleLogin} defaultMode="register" />}
-            />
-            <Route
-              path="/login"
-              element={<VendorAuth onLogin={handleLogin} defaultMode="login" />}
-            />
-            <Route
-              path="/auth"
-              element={<VendorAuth onLogin={handleLogin} defaultMode="login" />}
-            />
-            {/* If not logged in and visits protected pages, redirect to register */}
-            <Route path="/dashboard" element={<Navigate to="/" replace />} />
-          </>
-        )}
-        <Route 
-          path="*" 
-          element={<Navigate to="/" replace />} 
-        />
-      </Routes>
+          {/* Root route: conditionally render LandingPage or Generator */}
+          <Route 
+            path="/" 
+            element={vendor ? (
+              <Generator primaryColor={primaryColor} setPrimaryColor={setPrimaryColor} onShopGenerated={handleShopGenerated} />
+            ) : (
+              <><LandingPage /><Footer /></>
+            )} 
+          />
+
+          {/* Authentication routes */}
+          <Route
+            path="/register"
+            element={vendor ? <Navigate to="/" replace /> : <VendorAuth onLogin={handleLogin} defaultMode="register" />}
+          />
+          <Route
+            path="/login"
+            element={vendor ? <Navigate to="/" replace /> : <VendorAuth onLogin={handleLogin} defaultMode="login" />}
+          />
+          <Route
+            path="/auth"
+            element={vendor ? <Navigate to="/" replace /> : <VendorAuth onLogin={handleLogin} defaultMode="login" />}
+          />
+
+          {/* Protected dashboard routes */}
+          <Route 
+            path="/dashboard" 
+            element={vendor ? <Dashboard primaryColor={primaryColor} /> : <Navigate to="/login" replace />} 
+          />
+          <Route 
+            path="/live-dashboard" 
+            element={vendor ? <LiveDashboard /> : <Navigate to="/login" replace />} 
+          />
+          <Route 
+            path="/:shopId/dashboard" 
+            element={vendor ? <Dashboard primaryColor={primaryColor} /> : <Navigate to="/login" replace />} 
+          />
+          <Route 
+            path="/products" 
+            element={vendor ? <ProductDashboard /> : <Navigate to="/login" replace />} 
+          />
+
+          {/* Catch-all redirect */}
+          <Route 
+            path="*" 
+            element={<Navigate to="/" replace />} 
+          />
+        </Routes>
+      </div>
     </div>
   );
 }

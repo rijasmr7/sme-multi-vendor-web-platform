@@ -14,4 +14,7 @@ router.get('/distance/:id', vendorController.getDistanceToShop);
 // Location-based recommendations
 router.get('/recommendations/location', vendorController.getLocationRecommendations);
 
+// Delete shop location (called by AI/Shop service when deleting a shop)
+router.delete('/:shopId/location', vendorController.deleteLocation);
+
 module.exports = router;

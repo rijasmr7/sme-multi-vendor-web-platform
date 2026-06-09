@@ -58,9 +58,24 @@ const getLocationRecommendations = async (req, res) => {
     await getNearbyShops(req, res);
 };
 
+const deleteLocation = async (req, res) => {
+    const { shopId } = req.params;
+    if (!shopId) {
+        return res.status(400).json({ success: false, message: 'shopId is required' });
+    }
+    try {
+        const result = await geoService.deleteShopLocation(shopId);
+        res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        console.error('Failed to delete location:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
 module.exports = {
     updateLocation,
     getNearbyShops,
     getDistanceToShop,
-    getLocationRecommendations
+    getLocationRecommendations,
+    deleteLocation
 };

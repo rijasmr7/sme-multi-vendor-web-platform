@@ -171,6 +171,17 @@ services:
     depends_on:
       - gateway
 
+  admin-frontend:
+    build: ./admin-frontend
+    container_name: sme_admin_frontend
+    ports:
+      - "5175:5175"
+    volumes:
+      - ./admin-frontend:/app
+      - /app/node_modules
+    depends_on:
+      - gateway
+
 
   postgres:
     image: postgis/postgis:15-3.3-alpine

@@ -249,6 +249,58 @@ const getProfile = async (req, res) => {
     }
 };
 
+const getAllUsersAdmin = async (req, res) => {
+    try {
+        const users = await userService.findAllUsersAdmin();
+        sendSuccess(res, users);
+    } catch (error) {
+        sendError(res, 'Failed to fetch users');
+    }
+};
+
+const createUserAdmin = async (req, res) => {
+    const { name, email, phone, shop_name, password, role, city } = req.body;
+    if (!name || !password || (!email && !phone)) {
+        return sendError(res, 'Name, password, and (email or phone) are required', 400);
+    }
+    try {
+        const existingUsers = await userService.findByEmailOrPhone(email, phone);
+        if (existingUsers.length > 0) {
+            return sendError(res, 'A user with this email or phone already exists', 400);
+        }
+        const newUser = await userService.createUser({
+            name, email, phone, shop_name, password, role, city
+        });
+        sendSuccess(res, newUser, 201);
+    } catch (error) {
+        sendError(res, 'Failed to create user');
+    }
+};
+
+const updateUserAdmin = async (req, res) => {
+    const { id } = req.params;
+    if (isNaN(id)) return sendError(res, 'Invalid ID format', 400);
+    try {
+        const updated = await userService.updateUser(id, req.body);
+        if (!updated) return sendError(res, 'User not found', 404);
+        sendSuccess(res, updated);
+    } catch (error) {
+        sendError(res, 'Failed to update user');
+    }
+};
+
+const deleteUserAdmin = async (req, res) => {
+    const { id } = req.params;
+    if (isNaN(id)) return sendError(res, 'Invalid ID format', 400);
+    try {
+        const deleted = await userService.deleteUser(id);
+        if (!deleted) return sendError(res, 'User not found', 404);
+        sendSuccess(res, deleted);
+    } catch (error) {
+        sendError(res, 'Failed to delete user');
+    }
+};
+
 module.exports = {
     register,
     login,
@@ -257,5 +309,9 @@ module.exports = {
     customerLogin,
     getProfile,
     getInternalUser,
-    getAllUsersInternal
+    getAllUsersInternal,
+    getAllUsersAdmin,
+    createUserAdmin,
+    updateUserAdmin,
+    deleteUserAdmin
 };

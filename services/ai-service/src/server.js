@@ -18,10 +18,14 @@ CREATE TABLE IF NOT EXISTS shops (
     vendor_id INTEGER NOT NULL,
     shop_name TEXT NOT NULL,
     config JSONB,
+    location JSONB,
     is_published BOOLEAN DEFAULT FALSE,
+    is_approved BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE shops ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT FALSE;
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS location JSONB;
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT FALSE;
 `;
 
 pool.query(createTableQuery)

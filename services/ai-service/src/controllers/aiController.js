@@ -49,14 +49,14 @@ const generateShop = async (req, res) => {
 };
 
 const saveShop = async (req, res) => {
-    const { vendorId, shopName, config, isPublished } = req.body;
+    const { vendorId, shopName, config, isPublished, location } = req.body;
 
     if (!vendorId || !shopName || !config) {
         return sendError(res, 'vendorId, shopName, and config are required', 400);
     }
 
     try {
-        const savedShop = await aiService.saveShop(vendorId, shopName, config, isPublished);
+        const savedShop = await aiService.saveShop(vendorId, shopName, config, isPublished, location);
         sendSuccess(res, savedShop, 201);
     } catch (error) {
         console.error('[AI Controller] Error saving shop:', error);
@@ -118,6 +118,52 @@ const getPublicShopById = async (req, res) => {
     }
 };
 
+const getAllShopsAdmin = async (req, res) => {
+    try {
+        const shops = await aiService.findAllShopsAdmin();
+        sendSuccess(res, shops);
+    } catch (error) {
+        sendError(res, 'Failed to fetch all shops');
+    }
+};
+
+const toggleShopApprovalAdmin = async (req, res) => {
+    const { id } = req.params;
+    const { isApproved } = req.body;
+    if (isApproved === undefined) {
+        return sendError(res, 'isApproved field is required', 400);
+    }
+    try {
+        const shop = await aiService.toggleShopApproval(id, isApproved);
+        if (!shop) return sendError(res, 'Shop not found', 404);
+        sendSuccess(res, shop);
+    } catch (error) {
+        sendError(res, 'Failed to update shop approval status');
+    }
+};
+
+const updateShopAdmin = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const shop = await aiService.updateShopAdmin(id, req.body);
+        if (!shop) return sendError(res, 'Shop not found', 404);
+        sendSuccess(res, shop);
+    } catch (error) {
+        sendError(res, 'Failed to update shop details');
+    }
+};
+
+const deleteShopAdmin = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const shop = await aiService.deleteShopAdmin(id);
+        if (!shop) return sendError(res, 'Shop not found', 404);
+        sendSuccess(res, { message: 'Shop deleted successfully', shop });
+    } catch (error) {
+        sendError(res, 'Failed to delete shop');
+    }
+};
+
 module.exports = {
     generateShop,
     saveShop,
@@ -125,5 +171,9 @@ module.exports = {
     publishShop,
     getPublishedShops,
     getPublicShops,
-    getPublicShopById
+    getPublicShopById,
+    getAllShopsAdmin,
+    toggleShopApprovalAdmin,
+    updateShopAdmin,
+    deleteShopAdmin
 };
