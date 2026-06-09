@@ -19,6 +19,7 @@ const SERVICES = {
     analytics: process.env.ANALYTICS_SERVICE_URL || 'http://localhost:5003',
     order: process.env.ORDER_SERVICE_URL || 'http://localhost:5005',
     recommender: process.env.RECOMMENDER_SERVICE_URL || 'http://localhost:8008',
+    hybridRecommender: process.env.HYBRID_RECOMMENDER_URL || 'http://localhost:8009',
     webar: process.env.WEBAR_SERVICE_URL || 'http://localhost:5006'
 };
 
@@ -268,6 +269,32 @@ app.get('/public/shops/:id', async (req, res) => {
         res.status(response.status).json(response.data);
     } catch (error) {
         handleError(res, error, 'AI Service');
+    }
+});
+
+// GET /recommend/location-aware -> Forward to Hybrid Recommender service
+app.get('/recommend/location-aware', async (req, res) => {
+    try {
+        console.log(`>>> [Gateway] Forwarding GET /recommend/location-aware with query:`, req.query);
+        const response = await axios.get(`${SERVICES.hybridRecommender}/recommend/location-aware`, {
+            params: req.query
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Hybrid Recommender Service');
+    }
+});
+
+// GET /recommend/trending-nearby -> Forward to Hybrid Recommender service
+app.get('/recommend/trending-nearby', async (req, res) => {
+    try {
+        console.log(`>>> [Gateway] Forwarding GET /recommend/trending-nearby with query:`, req.query);
+        const response = await axios.get(`${SERVICES.hybridRecommender}/recommend/trending-nearby`, {
+            params: req.query
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Hybrid Recommender Service');
     }
 });
 

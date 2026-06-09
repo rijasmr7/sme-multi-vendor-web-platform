@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { Store, ArrowRight, Sparkles, ShoppingBag, ClipboardList, ShoppingCart, Package, X, Compass } from 'lucide-react';
+import { Store, ArrowRight, Sparkles, ShoppingBag, ClipboardList, ShoppingCart, Package, X, Compass, MapPin, TrendingUp, Brain, Users } from 'lucide-react';
 
 const GATEWAY_URL = 'http://localhost:5000';
 
@@ -13,6 +13,8 @@ const ShopListing = () => {
   const [products, setProducts] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [recsLoading, setRecsLoading] = useState(false);
+  const [hasFetchedRecs, setHasFetchedRecs] = useState(false);
+  const [recsError, setRecsError] = useState(null);
   const [orderStatus, setOrderStatus] = useState(null);
   const [orderLoading, setOrderLoading] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
@@ -67,26 +69,52 @@ const ShopListing = () => {
     fetchProducts();
   }, []);
 
-  useEffect(() => {
-    const fetchRecommendations = async () => {
-      if (!user || products.length === 0) return;
-      
-      setRecsLoading(true);
-      try {
-        const seedProductId = products[0].id;
-        const response = await axios.get(`${GATEWAY_URL}/products/recommendations/${user.id}/${seedProductId}`);
-        if (response.data.success) {
-          setRecommendations(response.data.data.recommendations || []);
-        }
-      } catch (err) {
-        console.error("Error fetching AI recommendations:", err);
-      } finally {
-        setRecsLoading(false);
-      }
-    };
+  // Fetch hybrid recommendations using browser geolocation + AI
+  const fetchHybridRecommendations = useCallback(async () => {
+    if (!user || products.length === 0) return;
     
-    if (user && products.length > 0) fetchRecommendations();
+    setRecsLoading(true);
+    setRecsError(null);
+    try {
+      // Try to get user's location for location-aware recommendations
+      let lat = null, lng = null;
+      try {
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, maximumAge: 300000 });
+        });
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+      } catch (locErr) {
+        console.warn("Location unavailable, using content-only recommendations:", locErr.message);
+        // Default coordinates (Colombo, Sri Lanka) as fallback
+        lat = 6.9271;
+        lng = 79.8612;
+      }
+
+      const response = await axios.get(`${GATEWAY_URL}/recommend/location-aware`, {
+        params: {
+          user_id: user.id,
+          latitude: lat,
+          longitude: lng
+        }
+      });
+      if (response.data.success) {
+        setRecommendations(response.data.data.recommendations || []);
+      }
+    } catch (err) {
+      console.error("Error fetching hybrid recommendations:", err);
+      setRecsError("Failed to connect to recommendation service. The model might still be loading.");
+    } finally {
+      setRecsLoading(false);
+      setHasFetchedRecs(true);
+    }
   }, [user, products]);
+  
+  useEffect(() => {
+    if (user && products.length > 0) {
+      fetchHybridRecommendations();
+    }
+  }, [user, products, fetchHybridRecommendations]);
 
   const handleAddToCart = async (product) => {
     const token = localStorage.getItem('token');
@@ -397,7 +425,7 @@ const ShopListing = () => {
             </div>
           </section>
 
-          {/* AI RECOMMENDATIONS SECTION */}
+          {/* HYBRID AI + LOCATION RECOMMENDATIONS SECTION */}
           {user && (
             <section style={{ 
               marginBottom: '8rem', padding: '4rem', 
@@ -412,7 +440,7 @@ const ShopListing = () => {
                   </div>
                   <div>
                     <h2 style={{ fontSize: '2.5rem', fontWeight: '900', color: '#451a03', margin: 0, letterSpacing: '-0.03em' }}>AI Recommended for You</h2>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '1.1rem', color: '#92400e', fontWeight: '600' }}>Personalized intelligence from our SME engine</p>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '1.1rem', color: '#92400e', fontWeight: '600' }}>Hybrid intelligence: Content + Collaborative + Location + Trending</p>
                   </div>
                 </div>
               </div>
@@ -420,37 +448,80 @@ const ShopListing = () => {
               {recsLoading ? (
                  <div style={{ textAlign: 'center', padding: '4rem' }}>
                     <div className="animate-spin" style={{ width: '30px', height: '30px', border: '3px solid #f97316', borderTopColor: 'transparent', borderRadius: '50%', margin: '0 auto 1rem' }}></div>
-                    <p style={{ color: '#f97316', fontWeight: '700' }}>Thinking for you...</p>
+                    <p style={{ color: '#f97316', fontWeight: '700' }}>Running hybrid recommendation engine...</p>
+                 </div>
+              ) : !hasFetchedRecs ? (
+                 <div style={{ textAlign: 'center', padding: '4rem' }}>
+                    <div className="animate-spin" style={{ width: '30px', height: '30px', border: '3px solid #f97316', borderTopColor: 'transparent', borderRadius: '50%', margin: '0 auto 1rem' }}></div>
+                    <p style={{ color: '#f97316', fontWeight: '700' }}>Loading your recommendations...</p>
+                 </div>
+              ) : recsError ? (
+                 <div style={{ textAlign: 'center', padding: '4rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: '24px', border: '1px dashed #f87171' }}>
+                    <p style={{ color: '#ef4444', fontWeight: '700', marginBottom: '1.25rem' }}>{recsError}</p>
+                    <button 
+                      onClick={fetchHybridRecommendations} 
+                      style={{ 
+                        background: '#f97316', border: 'none', color: 'white', padding: '10px 20px', 
+                        borderRadius: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' 
+                      }}
+                      onMouseOver={e => e.currentTarget.style.opacity = 0.9}
+                      onMouseOut={e => e.currentTarget.style.opacity = 1}
+                    >
+                      Retry Loading
+                    </button>
                  </div>
               ) : recommendations.length > 0 ? (
-                <div className="shop-grid" style={{ padding: '0' }}>
-                  {recommendations.slice(0, 3).map((rec, idx) => (
-                    <div key={idx} className="glass-card" style={{ padding: '2rem', border: '1px solid rgba(251, 191, 36, 0.3)', position: 'relative', background: 'white' }}>
-                      <div style={{ position: 'absolute', top: 0, right: 0, padding: '6px 16px', background: '#f97316', color: 'white', fontSize: '0.75rem', fontWeight: '900', borderRadius: '0 0 0 16px' }}>AI CHOICE</div>
-                      <h4 style={{ fontSize: '1.4rem', fontWeight: '900', color: '#451a03', marginBottom: '1.25rem' }}>{rec.name}</h4>
-                      
-                      <div style={{ background: '#f9731608', borderLeft: '4px solid #f97316', padding: '16px', borderRadius: '0 12px 12px 0', marginBottom: '2rem', fontSize: '1rem', color: '#451a03', fontStyle: 'italic', lineHeight: '1.6' }}>
-                        "{rec.ai_explanation}"
-                      </div>
+                 <div className="shop-grid" style={{ padding: '0' }}>
+                   {recommendations.slice(0, 3).map((rec, idx) => (
+                     <div key={idx} className="glass-card" style={{ padding: '2rem', border: '1px solid rgba(251, 191, 36, 0.3)', position: 'relative', background: 'white' }}>
+                       <div style={{ position: 'absolute', top: 0, right: 0, padding: '6px 16px', background: 'linear-gradient(135deg, #f97316, #eab308)', color: 'white', fontSize: '0.75rem', fontWeight: '900', borderRadius: '0 0 0 16px' }}>HYBRID AI</div>
+                       <h4 style={{ fontSize: '1.4rem', fontWeight: '900', color: '#451a03', marginBottom: '1.25rem' }}>{rec.name}</h4>
+                       
+                       <div style={{ background: '#f9731608', borderLeft: '4px solid #f97316', padding: '16px', borderRadius: '0 12px 12px 0', marginBottom: '1.25rem', fontSize: '1rem', color: '#451a03', fontStyle: 'italic', lineHeight: '1.6' }}>
+                         "{rec.ai_explanation}"
+                       </div>
 
-                      <div style={{ marginBottom: '1rem', borderBottom: '1px solid #fef3c7', paddingBottom: '1rem' }}>
-                        <span style={{ fontSize: '1.5rem', fontWeight: '900', color: '#f97316' }}>LKR {parseFloat(rec.price || 0).toLocaleString()}</span>
-                      </div>
+                       {/* Score Breakdown Badges */}
+                       {rec.score_breakdown && (
+                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '1.25rem' }}>
+                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: '800', padding: '4px 10px', borderRadius: '100px', background: '#dbeafe', color: '#1e40af' }}>
+                             <Brain size={12} /> Content {(rec.score_breakdown.content * 100).toFixed(0)}%
+                           </span>
+                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: '800', padding: '4px 10px', borderRadius: '100px', background: '#f3e8ff', color: '#7c3aed' }}>
+                             <Users size={12} /> Collab {(rec.score_breakdown.collaborative * 100).toFixed(0)}%
+                           </span>
+                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: '800', padding: '4px 10px', borderRadius: '100px', background: '#dcfce7', color: '#15803d' }}>
+                             <MapPin size={12} /> Nearby {(rec.score_breakdown.location * 100).toFixed(0)}%
+                           </span>
+                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: '800', padding: '4px 10px', borderRadius: '100px', background: '#fef3c7', color: '#92400e' }}>
+                             <TrendingUp size={12} /> Trend {(rec.score_breakdown.realtime * 100).toFixed(0)}%
+                           </span>
+                         </div>
+                       )}
 
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button onClick={() => handleAddToCart(rec)} style={{ flex: 1, padding: '10px', background: 'transparent', border: '2px solid #f97316', color: '#f97316', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#f9731611'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>Add to Cart</button>
-                          <button onClick={() => handleOrder(rec)} style={{ flex: 1, padding: '10px', background: '#f97316', border: 'none', color: 'white', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.9} onMouseOut={e => e.currentTarget.style.opacity = 1}>Buy Now</button>
-                        </div>
-                        <Link to={`/shop/${rec.vendor_id}`} style={{ textAlign: 'center', background: '#451a03', color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.9} onMouseOut={e => e.currentTarget.style.opacity = 1}>View Shop</Link>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                       <div style={{ marginBottom: '1rem', borderBottom: '1px solid #fef3c7', paddingBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                         <span style={{ fontSize: '1.5rem', fontWeight: '900', color: '#f97316' }}>LKR {parseFloat(rec.price || 0).toLocaleString()}</span>
+                         {rec.score_breakdown && (
+                           <span style={{ fontSize: '0.8rem', fontWeight: '800', color: '#92400e', background: '#fef3c7', padding: '4px 12px', borderRadius: '100px' }}>
+                             Score: {(rec.score_breakdown.final * 100).toFixed(1)}%
+                           </span>
+                         )}
+                       </div>
+
+                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                         <div style={{ display: 'flex', gap: '8px' }}>
+                           <button onClick={() => handleAddToCart(rec)} style={{ flex: 1, padding: '10px', background: 'transparent', border: '2px solid #f97316', color: '#f97316', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#f9731611'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>Add to Cart</button>
+                           <button onClick={() => handleOrder(rec)} style={{ flex: 1, padding: '10px', background: '#f97316', border: 'none', color: 'white', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.9} onMouseOut={e => e.currentTarget.style.opacity = 1}>Buy Now</button>
+                         </div>
+                         <Link to={`/shop/${rec.vendor_id}`} style={{ textAlign: 'center', background: '#451a03', color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.9} onMouseOut={e => e.currentTarget.style.opacity = 1}>View Shop</Link>
+                       </div>
+                     </div>
+                   ))}
+                 </div>
               ) : (
-                <div style={{ textAlign: 'center', padding: '4rem', background: 'rgba(0,0,0,0.02)', borderRadius: '24px' }}>
-                    <p style={{ color: '#92400e', fontWeight: '600' }}>Keep exploring products to unlock personalized recommendations!</p>
-                </div>
+                 <div style={{ textAlign: 'center', padding: '4rem', background: 'rgba(0,0,0,0.02)', borderRadius: '24px' }}>
+                     <p style={{ color: '#92400e', fontWeight: '600' }}>Keep exploring products to unlock personalized recommendations!</p>
+                 </div>
               )}
             </section>
           )}

@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Query
+from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import numpy as np
@@ -13,6 +14,8 @@ from services.rag_service import RAGService
 from services.svd_service import SVDService
 from services.hybrid_engine import HybridEngine
 from services.evaluation_service import EvaluationService
+from services.location_service import LocationService
+from services.realtime_service import RealtimeService
 import urllib.request
 
 load_dotenv()
@@ -25,8 +28,10 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # -------------------------------------------------------------
 rag = RAGService()
 svd = SVDService()
-hybrid = HybridEngine(rag, svd)
 evaluator = EvaluationService()
+
+location_service = LocationService()
+realtime_service = RealtimeService()
 
 # Configure Gemini (MODERN SDK)
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
@@ -42,34 +47,10 @@ if GEMINI_KEY:
 else:
     print("Gemini: CRITICAL ERROR - GEMINI_API_KEY not found!")
 
-# -------------------------------------------------------------
-# 2. DATA LOAD (MOCK DATABASE)
-# -------------------------------------------------------------
-products = [
-    {"id": 1, "name": "Organic Apple", "description": "Fresh organic red apple rich in Vitamin C", "category": "fruit", "metadata": "Usage: Snack. Benefits: High fiber."},
-    {"id": 2, "name": "Banana", "description": "Sweet yellow banana rich in potassium", "category": "fruit", "metadata": "Usage: Energy boost. Benefits: Potassium."},
-    {"id": 3, "name": "Whole Milk", "description": "Fresh dairy milk 1 liter", "category": "dairy", "metadata": "Usage: Breakfast. Benefits: Calcium."},
-    {"id": 4, "name": "Cheddar Cheese", "description": "Aged cheddar cheese block", "category": "dairy", "metadata": "Usage: Cooking. Benefits: Protein."},
-    {"id": 5, "name": "Brown Bread", "description": "Healthy whole wheat brown bread", "category": "bakery", "metadata": "Usage: Toasts. Benefits: Whole grain."},
-    {"id": 6, "name": "Chocolate Cookies", "description": "Crunchy cookies with dark chocolate", "category": "bakery", "metadata": "Usage: Dessert. Benefits: Happiness."},
-    {"id": 7, "name": "Green Tea", "description": "Organic green tea with antioxidants", "category": "beverage", "metadata": "Usage: Relaxing. Benefits: Metabolism."},
-    {"id": 8, "name": "Orange Juice", "description": "100% pure squeezed orange juice", "category": "beverage", "metadata": "Usage: Refreshment. Benefits: Vitamin C."},
-    {"id": 9, "name": "Greek Yogurt", "description": "Creamy protein-rich greek yogurt", "category": "dairy", "metadata": "Usage: Healthy meal. Benefits: Probiotics."},
-    {"id": 10, "name": "Sourdough Bread", "description": "Traditional fermented sourdough", "category": "bakery", "metadata": "Usage: Sandwich. Benefits: Digestion."},
-]
+hybrid = HybridEngine(rag, svd, location_service, realtime_service, client)
 
-purchase_history = [
-    {"user_id": 1, "product_id": 1}, {"user_id": 1, "product_id": 2},
-    {"user_id": 2, "product_id": 1}, {"user_id": 2, "product_id": 3}, {"user_id": 2, "product_id": 9},
-    {"user_id": 3, "product_id": 5}, {"user_id": 3, "product_id": 10},
-    {"user_id": 4, "product_id": 7}, {"user_id": 4, "product_id": 8},
-]
-
-df_products = pd.DataFrame(products)
-
-df_products = pd.DataFrame(products)
-
-is_using_mock_data = True
+df_products = pd.DataFrame()
+is_data_loaded = False
 global_real_orders = []
 global_valid_history = []
 
@@ -119,8 +100,8 @@ def fetch_real_orders():
 
 @app.on_event("startup")
 async def startup_event():
-    rag.build_index(df_products)
-    svd.train(purchase_history)
+    # Attempt to load data on startup if services are available
+    ensure_real_data_loaded()
 
 # -------------------------------------------------------------
 # 3. AI EXPLANATION ENGINE (ROBUST)
@@ -183,54 +164,124 @@ def generate_bulk_explanations(target_product, rec_products, context=None):
 # 4. API ENDPOINTS
 # -------------------------------------------------------------
 
-@app.get("/recommend/explain")
-async def get_explained_recommendations(user_id: int, product_id: int):
-    global is_using_mock_data, df_products, global_real_orders, global_valid_history
-    
-    if is_using_mock_data:
-        real_prods = fetch_real_products()
-        if real_prods and len(real_prods) > 0:
-            formatted = []
-            for p in real_prods:
-                desc = p.get("extra_data", {}).get("description", p["name"]) if isinstance(p.get("extra_data"), dict) else p["name"]
-                formatted.append({
-                    "id": int(p["id"]),
-                    "name": p["name"],
-                    "description": desc,
-                    "category": p["category"],
-                    "metadata": f"Price: {p['price']}",
-                    "price": float(p["price"]),
-                    "vendor_id": int(p["vendor_id"])
+def ensure_real_data_loaded():
+    global is_data_loaded, df_products, global_real_orders, global_valid_history
+    if is_data_loaded:
+        return
+        
+    real_prods = fetch_real_products()
+    if real_prods and len(real_prods) > 0:
+        formatted = []
+        for p in real_prods:
+            desc = p.get("extra_data", {}).get("description", p["name"]) if isinstance(p.get("extra_data"), dict) else p["name"]
+            formatted.append({
+                "id": int(p["id"]),
+                "name": p["name"],
+                "description": desc,
+                "category": p["category"],
+                "metadata": f"Price: {p['price']}",
+                "price": float(p["price"]),
+                "vendor_id": int(p["vendor_id"])
+            })
+        df_new = pd.DataFrame(formatted)
+        df_products = df_new
+        rag.build_index(df_products)
+        
+        # Fetch real orders and train SVD Collaborative Filtering
+        global_real_orders = fetch_real_orders()
+        
+        # Fetch all users to map their cities to orders (Microservice Join)
+        all_users = fetch_all_users()
+        user_cities = {u["id"]: u.get("city", "Unknown") for u in all_users}
+        
+        global_valid_history = []
+        name_to_id = {}
+        for _, row in df_products.iterrows():
+            if row['name'] not in name_to_id:
+                name_to_id[row['name']] = row['id']
+        
+        for o in global_real_orders:
+            p_name = o.get("product_id") # Note: Orders DB stores product name
+            if p_name in name_to_id:
+                global_valid_history.append({
+                    "user_id": o["user_id"],
+                    "product_id": name_to_id[p_name],
+                    "city": user_cities.get(o["user_id"], "Unknown")
                 })
-            df_new = pd.DataFrame(formatted)
-            df_products = df_new
-            rag.build_index(df_products)
+        
+        if len(global_valid_history) > 0:
+            svd.train(global_valid_history)
             
-            # Fetch real orders and train SVD Collaborative Filtering
-            global_real_orders = fetch_real_orders()
-            
-            # Fetch all users to map their cities to orders (Microservice Join)
-            all_users = fetch_all_users()
-            user_cities = {u["id"]: u.get("city", "Unknown") for u in all_users}
-            
-            global_valid_history = []
-            name_to_id = {row['name']: row['id'] for _, row in df_products.iterrows()}
-            
-            for o in global_real_orders:
-                p_name = o.get("product_id") # Note: Orders DB stores product name
-                if p_name in name_to_id:
-                    global_valid_history.append({
-                        "user_id": o["user_id"],
-                        "product_id": name_to_id[p_name],
-                        "city": user_cities.get(o["user_id"], "Unknown")
-                    })
-            
-            if len(global_valid_history) > 0:
-                svd.train(global_valid_history)
-            else:
-                print("SVD: No valid real orders found yet. Falling back to default scoring.")
-            
-            is_using_mock_data = False
+            # Map history cache in SVD for multi-seed location-aware
+            svd.user_history = {}
+            for h in global_valid_history:
+                uid = h['user_id']
+                pid = h['product_id']
+                if uid not in svd.user_history:
+                    svd.user_history[uid] = []
+                svd.user_history[uid].append(pid)
+        else:
+            print("SVD: No valid real orders found yet. Falling back to default scoring.")
+        
+        is_data_loaded = True
+
+# router_location_aware = None # placeholder reference if needed
+
+@app.get("/recommend/location-aware")
+async def get_location_aware_recommendations(
+    user_id: int = Query(..., description="User ID"),
+    latitude: float = Query(..., description="User Latitude"),
+    longitude: float = Query(..., description="User Longitude"),
+    product_id: Optional[int] = Query(None, description="Target Product ID")
+):
+    """
+    Consolidated location-aware production endpoint.
+    Fuses Content, Collab, Location, and Trending scores.
+    """
+    ensure_real_data_loaded()
+    try:
+        results = hybrid.get_location_aware_recommendations(
+            user_id=user_id,
+            target_product_id=product_id,
+            user_lat=latitude,
+            user_lng=longitude,
+            df_products=df_products,
+            top_k=5
+        )
+        return {
+            "success": True,
+            "data": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/recommend/trending-nearby")
+async def get_trending_nearby_endpoint(
+    latitude: float = Query(..., description="User Latitude"),
+    longitude: float = Query(..., description="User Longitude")
+):
+    """
+    Consolidated trending nearby production endpoint.
+    Fuses trending (Realtime) and proximity (Location).
+    """
+    ensure_real_data_loaded()
+    try:
+        results = hybrid.get_trending_nearby(
+            user_lat=latitude,
+            user_lng=longitude,
+            df_products=df_products,
+            top_k=5
+        )
+        return {
+            "success": True,
+            "data": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/recommend/explain")
+async def get_explained_recommendations(user_id: int, product_id: Optional[int] = Query(None)):
+    ensure_real_data_loaded()
 
     # Check if this is a Cold Start User (no order history)
     is_cold_start = not any(str(h['user_id']) == str(user_id) for h in global_valid_history)
@@ -353,29 +404,6 @@ async def get_explained_recommendations(user_id: int, product_id: int):
         "user_id": user_id,
         "base_product": target_product['name'],
         "recommendations": explained_recs
-    }
-
-@app.get("/evaluate/model")
-async def evaluate_model(k: int = 5):
-    test_users = [1, 2]
-    ground_truth = {1: [1, 2], 2: [1, 3, 9]}
-    precisions, recalls, actual_list, predicted_list = [], [], [], []
-
-    for uid in test_users:
-        recs = hybrid.get_hybrid_scores(uid, 1, df_products, top_k=k)
-        predicted_ids = [r['id'] for r in recs]
-        actual = ground_truth[uid]
-        actual_list.append(actual)
-        predicted_list.append(predicted_ids)
-        precisions.append(evaluator.precision_at_k(actual, predicted_ids, k))
-        recalls.append(evaluator.recall_at_k(actual, predicted_ids, k))
-
-    return {
-        "metrics": {
-            "Precision@K": round(np.mean(precisions), 4),
-            "Recall@K": round(np.mean(recalls), 4),
-            "MAP@K": round(evaluator.mean_average_precision(actual_list, predicted_list, k), 4)
-        }
     }
 
 if __name__ == "__main__":

@@ -8,3 +8,5 @@ python-dotenv
 scikit-learn
 faiss-cpu
 scikit-surprise
+redis
+requests

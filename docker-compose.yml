@@ -17,6 +17,7 @@ services:
       - USER_SERVICE_URL=http://user:5004
       - ORDER_SERVICE_URL=http://order:5005
       - RECOMMENDER_SERVICE_URL=http://recommender:8008
+      - HYBRID_RECOMMENDER_URL=http://recommender:8008
       - WEBAR_SERVICE_URL=http://webar:5006
       - LOCATION_SERVICE_URL=http://location:5007
     depends_on:
@@ -104,10 +105,22 @@ services:
       - "8008:8008"
     env_file:
       - ./services/ai-recommender-service/.env
+    environment:
+      - PRODUCT_SERVICE_URL=http://product:5001
+      - ORDER_SERVICE_URL=http://order:5005
+      - LOCATION_SERVICE_URL=http://location:5007
+      - ANALYTICS_SERVICE_URL=http://analytics:5003
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     volumes:
       - ./services/ai-recommender-service:/app
     depends_on:
       - postgres
+      - product
+      - order
+      - location
+      - analytics
+      - redis
 
   webar:
     build: ./services/webar-service
