@@ -69,6 +69,39 @@ const ShopListing = () => {
     fetchProducts();
   }, []);
 
+  // Resolve user location and track homepage view on load
+  useEffect(() => {
+    const resolveAndTrackLocation = async () => {
+      let lat = 6.9271;
+      let lng = 79.8612;
+      
+      try {
+        if (navigator.geolocation) {
+          const pos = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, maximumAge: 300000 });
+          });
+          lat = pos.coords.latitude;
+          lng = pos.coords.longitude;
+        }
+      } catch (locErr) {
+        console.warn("Location permission denied or unavailable, using Colombo fallback:", locErr.message);
+      }
+      
+      const loc = { latitude: lat, longitude: lng };
+      localStorage.setItem('customerLocation', JSON.stringify(loc));
+      
+      // Track homepage view event in Analytics Service
+      axios.post(`http://localhost:5003/events/test`, {
+        event_type: 'homepage_view',
+        user_id: localStorage.getItem('customer') ? String(JSON.parse(localStorage.getItem('customer')).id) : null,
+        latitude: lat,
+        longitude: lng
+      }).catch(err => console.error("Failed to track homepage view event:", err));
+    };
+    
+    resolveAndTrackLocation();
+  }, []);
+
   // Fetch hybrid recommendations using browser geolocation + AI
   const fetchHybridRecommendations = useCallback(async () => {
     if (!user || products.length === 0) return;
@@ -76,19 +109,26 @@ const ShopListing = () => {
     setRecsLoading(true);
     setRecsError(null);
     try {
-      // Try to get user's location for location-aware recommendations
-      let lat = null, lng = null;
-      try {
-        const pos = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, maximumAge: 300000 });
-        });
-        lat = pos.coords.latitude;
-        lng = pos.coords.longitude;
-      } catch (locErr) {
-        console.warn("Location unavailable, using content-only recommendations:", locErr.message);
-        // Default coordinates (Colombo, Sri Lanka) as fallback
-        lat = 6.9271;
-        lng = 79.8612;
+      let lat = 6.9271;
+      let lng = 79.8612;
+      
+      const cached = localStorage.getItem('customerLocation');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          lat = parsed.latitude;
+          lng = parsed.longitude;
+        } catch (e) {}
+      } else {
+        try {
+          const pos = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, maximumAge: 300000 });
+          });
+          lat = pos.coords.latitude;
+          lng = pos.coords.longitude;
+        } catch (locErr) {
+          console.warn("Location unavailable, using content-only recommendations:", locErr.message);
+        }
       }
 
       const response = await axios.get(`${GATEWAY_URL}/recommend/location-aware`, {
@@ -117,11 +157,23 @@ const ShopListing = () => {
   }, [user, products, fetchHybridRecommendations]);
 
   const trackRecommendationClick = (rec) => {
+    let lat = null, lon = null;
+    try {
+      const cached = localStorage.getItem('customerLocation');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        lat = parsed.latitude;
+        lon = parsed.longitude;
+      }
+    } catch (e) {}
+
     axios.post(`http://localhost:5003/events/test`, {
       event_type: 'recommendation_clicked',
       vendor_id: String(rec.vendor_id),
       product_id: String(rec.name),
-      user_id: user ? String(user.id) : null
+      user_id: user ? String(user.id) : null,
+      latitude: lat,
+      longitude: lon
     }).catch(err => console.error("Failed to track recommendation click:", err));
   };
 

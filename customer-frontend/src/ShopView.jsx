@@ -23,6 +23,33 @@ const ShopView = () => {
   const [cartItems, setCartItems] = useState([]);
   const [showCartModal, setShowCartModal] = useState(false);
   const [activeLink, setActiveLink] = useState('');
+
+  // Resolve user location and cache it in localStorage on mount
+  useEffect(() => {
+    const getCoords = async () => {
+      if (localStorage.getItem('customerLocation')) return;
+      try {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              localStorage.setItem('customerLocation', JSON.stringify({
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude
+              }));
+            },
+            (err) => {
+              console.warn("Location permission not given on shop view:", err.message);
+              localStorage.setItem('customerLocation', JSON.stringify({
+                latitude: 6.9271,
+                longitude: 79.8612
+              }));
+            }
+          );
+        }
+      } catch (e) {}
+    };
+    getCoords();
+  }, []);
   
   useEffect(() => {
     if (shop && shop.navigation && !activeLink) {
@@ -128,11 +155,23 @@ const ShopView = () => {
         // Track central ar_opened analytics
         const product = shop?.products?.find(p => p.id === productId);
         if (product) {
+          let lat = null, lon = null;
+          try {
+            const cached = localStorage.getItem('customerLocation');
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              lat = parsed.latitude;
+              lon = parsed.longitude;
+            }
+          } catch (e) {}
+
           axios.post(`http://localhost:5003/events/test`, {
             event_type: 'ar_opened',
             vendor_id: String(shop.vendor_id),
             product_id: String(product.name),
-            user_id: user ? String(user.id) : null
+            user_id: user ? String(user.id) : null,
+            latitude: lat,
+            longitude: lon
           }).catch(err => console.error("Failed to post ar_opened analytics:", err));
         }
       }
@@ -198,13 +237,36 @@ const ShopView = () => {
               
               shopData.products = enrichedProducts;
 
-              // Track product views in central Analytics Service
+              // Track shop view and product views in central Analytics Service
+              let lat = 6.9271;
+              let lng = 79.8612;
+              try {
+                const cached = localStorage.getItem('customerLocation');
+                if (cached) {
+                  const parsed = JSON.parse(cached);
+                  lat = parsed.latitude;
+                  lng = parsed.longitude;
+                }
+              } catch (e) {}
+
+              // Track shop_view
+              axios.post(`http://localhost:5003/events/test`, {
+                event_type: 'shop_view',
+                vendor_id: String(shopData.vendor_id),
+                user_id: localStorage.getItem('customer') ? String(JSON.parse(localStorage.getItem('customer')).id) : null,
+                latitude: lat,
+                longitude: lng
+              }).catch(err => console.error("Failed to track shop_view event:", err));
+
+              // Track product views
               enrichedProducts.forEach(prod => {
                 axios.post(`http://localhost:5003/events/test`, {
                   event_type: 'product_view',
                   vendor_id: String(shopData.vendor_id),
                   product_id: String(prod.name),
-                  user_id: localStorage.getItem('customer') ? String(JSON.parse(localStorage.getItem('customer')).id) : null
+                  user_id: localStorage.getItem('customer') ? String(JSON.parse(localStorage.getItem('customer')).id) : null,
+                  latitude: lat,
+                  longitude: lng
                 }).catch(err => console.error("Failed to track product_view event:", err));
               });
             }

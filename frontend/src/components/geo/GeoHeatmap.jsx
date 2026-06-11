@@ -32,9 +32,33 @@ function HeatmapLayer({ hotspots }) {
   });
 }
 
-const GeoHeatmap = ({ hotspots }) => {
+const GeoHeatmap = ({ hotspots, shopLocation }) => {
   // Center roughly on New York (or calculate from hotspots)
-  const defaultCenter = hotspots.length > 0 ? [hotspots[0].center_lat, hotspots[0].center_lon] : [40.7128, -74.0060];
+  let defaultCenter = [40.7128, -74.0060];
+  
+  try {
+    if (shopLocation) {
+      const locObj = typeof shopLocation === 'string' ? JSON.parse(shopLocation) : shopLocation;
+      if (locObj && locObj.lat !== undefined && (locObj.lon !== undefined || locObj.lng !== undefined)) {
+        defaultCenter = [parseFloat(locObj.lat), parseFloat(locObj.lon || locObj.lng)];
+      }
+    } else if (hotspots && hotspots.length > 0) {
+      defaultCenter = [hotspots[0].center_lat, hotspots[0].center_lon];
+    }
+  } catch (e) {
+    console.error("Error parsing shopLocation in GeoHeatmap:", e);
+  }
+
+  // Component to update map viewport on center changes
+  function MapCenterUpdater({ center }) {
+    const map = useMap();
+    useEffect(() => {
+      if (center) {
+        map.setView(center, map.getZoom());
+      }
+    }, [center, map]);
+    return null;
+  }
 
   return (
     <div className="h-[400px] w-full rounded-xl overflow-hidden border border-gray-200 shadow-sm relative z-0">
@@ -43,6 +67,7 @@ const GeoHeatmap = ({ hotspots }) => {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <MapCenterUpdater center={defaultCenter} />
         {hotspots && hotspots.length > 0 && <HeatmapLayer hotspots={hotspots} />}
       </MapContainer>
     </div>

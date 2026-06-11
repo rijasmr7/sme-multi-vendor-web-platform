@@ -242,8 +242,23 @@ function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiv
     // Fetch initial geo data
     const fetchGeoData = async () => {
       try {
+        let lat = 40.7128;
+        let lon = -74.0060;
+        
+        try {
+          if (shop.location) {
+            const locObj = typeof shop.location === 'string' ? JSON.parse(shop.location) : shop.location;
+            if (locObj && locObj.lat !== undefined && (locObj.lon !== undefined || locObj.lng !== undefined)) {
+              lat = parseFloat(locObj.lat);
+              lon = parseFloat(locObj.lon || locObj.lng);
+            }
+          }
+        } catch (e) {
+          console.error("Error parsing shop location coordinates:", e);
+        }
+
         const [trafficRes, hotspotsRes] = await Promise.all([
-          axios.get(`http://localhost:5003/geo/vendor-traffic/${shop.id}?lat=40.7128&lon=-74.0060`), // Mock shop coordinates for demo
+          axios.get(`http://localhost:5003/geo/vendor-traffic/${shop.id}?lat=${lat}&lon=${lon}`),
           axios.get(`http://localhost:5003/geo/hotspots`)
         ]);
         if (trafficRes.data.success) setVendorTraffic(trafficRes.data.data);
@@ -268,7 +283,7 @@ function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiv
     });
 
     return () => socket.disconnect();
-  }, [shop.id]);
+  }, [shop.id, shop.location]);
 
   return (
     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100vh', background: '#f1f5f9' }}>
@@ -377,7 +392,7 @@ function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiv
                 padding: '8px', 
                 boxShadow: '0 1px 3px rgba(0,0,0,0.05)' 
               }}>
-                 <GeoHeatmap hotspots={hotspots} />
+                 <GeoHeatmap hotspots={hotspots} shopLocation={shop.location} />
               </div>
               <div style={{ height: '416px' }}>
                 <VendorTrafficPanel vendorTraffic={vendorTraffic} />
