@@ -116,6 +116,15 @@ const ShopListing = () => {
     }
   }, [user, products, fetchHybridRecommendations]);
 
+  const trackRecommendationClick = (rec) => {
+    axios.post(`http://localhost:5003/events/test`, {
+      event_type: 'recommendation_clicked',
+      vendor_id: String(rec.vendor_id),
+      product_id: String(rec.name),
+      user_id: user ? String(user.id) : null
+    }).catch(err => console.error("Failed to track recommendation click:", err));
+  };
+
   const handleAddToCart = async (product) => {
     const token = localStorage.getItem('token');
     if (!token || !user) {
@@ -510,10 +519,10 @@ const ShopListing = () => {
 
                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                          <div style={{ display: 'flex', gap: '8px' }}>
-                           <button onClick={() => handleAddToCart(rec)} style={{ flex: 1, padding: '10px', background: 'transparent', border: '2px solid #f97316', color: '#f97316', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#f9731611'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>Add to Cart</button>
-                           <button onClick={() => handleOrder(rec)} style={{ flex: 1, padding: '10px', background: '#f97316', border: 'none', color: 'white', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.9} onMouseOut={e => e.currentTarget.style.opacity = 1}>Buy Now</button>
+                           <button onClick={() => { trackRecommendationClick(rec); handleAddToCart(rec); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: '2px solid #f97316', color: '#f97316', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#f9731611'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>Add to Cart</button>
+                           <button onClick={() => { trackRecommendationClick(rec); handleOrder(rec); }} style={{ flex: 1, padding: '10px', background: '#f97316', border: 'none', color: 'white', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.9} onMouseOut={e => e.currentTarget.style.opacity = 1}>Buy Now</button>
                          </div>
-                         <Link to={`/shop/${rec.vendor_id}`} style={{ textAlign: 'center', background: '#451a03', color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.9} onMouseOut={e => e.currentTarget.style.opacity = 1}>View Shop</Link>
+                         <Link to={`/shop/${rec.vendor_id}`} onClick={() => trackRecommendationClick(rec)} style={{ textAlign: 'center', background: '#451a03', color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.9} onMouseOut={e => e.currentTarget.style.opacity = 1}>View Shop</Link>
                        </div>
                      </div>
                    ))}

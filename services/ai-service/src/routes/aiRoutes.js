@@ -19,6 +19,7 @@ router.delete('/admin/shops/:id', authenticateToken, authorizeRole('admin'), aiC
 
 router.get('/shops/:vendorId', aiController.getVendorShops);
 router.put('/shops/publish/:shopId', aiController.publishShop);
+router.put('/shops/:shopId/config', aiController.updateShopConfig);
 
 // Public Routes (No Auth required)
 router.get('/public/shops', aiController.getPublicShops);

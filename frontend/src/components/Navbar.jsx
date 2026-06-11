@@ -130,7 +130,6 @@ const Navbar = ({ vendor, hasShop, handleLogout }) => {
                 {hasShop && (
                   <>
                     <Link to="/dashboard" style={getLinkStyle('/dashboard')}><LayoutDashboard size={16} /> Dashboard</Link>
-                    <Link to="/live-dashboard" style={getLinkStyle('/live-dashboard')}><Activity size={16} /> Analytics</Link>
                   </>
                 )}
                 <div style={{ width: '1px', height: '20px', backgroundColor: 'rgba(255,255,255,0.1)' }}></div>
@@ -185,7 +184,6 @@ const Navbar = ({ vendor, hasShop, handleLogout }) => {
               {hasShop && (
                 <>
                   <Link to="/dashboard" onClick={closeMenu} style={getLinkStyle('/dashboard')}><LayoutDashboard size={18} /> Dashboard</Link>
-                  <Link to="/live-dashboard" onClick={closeMenu} style={getLinkStyle('/live-dashboard')}><Activity size={18} /> Analytics</Link>
                 </>
               )}
               <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }}></div>

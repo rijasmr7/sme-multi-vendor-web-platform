@@ -55,9 +55,16 @@ class HybridEngine:
                 'category': product_data['category']
             })
             
-        # 3. Sort and Return
+        # 3. Sort and Deduplicate by product name, then Return
         hybrid_results = sorted(hybrid_results, key=lambda x: x['score'], reverse=True)
-        return hybrid_results[:top_k]
+        seen_names = set()
+        deduped_results = []
+        for item in hybrid_results:
+            name_lower = item['name'].strip().lower()
+            if name_lower not in seen_names:
+                seen_names.add(name_lower)
+                deduped_results.append(item)
+        return deduped_results[:top_k]
 
     def _build_smart_fallback(self, product, target_product, c_score, s_score, l_score, r_score, seed_product_name=None) -> str:
         """
@@ -248,7 +255,7 @@ class HybridEngine:
         # 4. Realtime Score (Trending/Redis)
         r_scores = {}
         if self.realtime:
-            r_scores = self.realtime.get_realtime_scores(product_ids)
+            r_scores = self.realtime.get_realtime_scores(product_ids, df_products)
         else:
             r_scores = {pid: 0.0 for pid in product_ids}
             
@@ -279,7 +286,19 @@ class HybridEngine:
             
         # Sort by final score
         results.sort(key=lambda x: x['scores']['final'], reverse=True)
-        top_results = results[:top_k]
+        
+        # Deduplicate by product name, keeping the highest final score
+        seen_names = set()
+        deduped_results = []
+        for res in results:
+            name_lower = res['product']['name'].strip().lower()
+            if target_product and name_lower == target_product['name'].strip().lower():
+                continue
+            if name_lower not in seen_names:
+                seen_names.add(name_lower)
+                deduped_results.append(res)
+                
+        top_results = deduped_results[:top_k]
         
         # Prepare list for bulk explanations
         rec_products_with_scores = []
@@ -341,7 +360,7 @@ class HybridEngine:
             
         r_scores = {}
         if self.realtime:
-            r_scores = self.realtime.get_realtime_scores(product_ids)
+            r_scores = self.realtime.get_realtime_scores(product_ids, df_products)
         else:
             r_scores = {pid: 0.0 for pid in product_ids}
             
@@ -367,7 +386,17 @@ class HybridEngine:
                 })
                 
         results.sort(key=lambda x: x['score'], reverse=True)
-        top_results = results[:top_k]
+        
+        # Deduplicate by product name, keeping the highest score
+        seen_names = set()
+        deduped_results = []
+        for r in results:
+            name_lower = r['product']['name'].strip().lower()
+            if name_lower not in seen_names:
+                seen_names.add(name_lower)
+                deduped_results.append(r)
+                
+        top_results = deduped_results[:top_k]
         
         return [
             {

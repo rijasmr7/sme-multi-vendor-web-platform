@@ -11,6 +11,8 @@ import Footer from './components/Footer';
 import LandingPage from './pages/LandingPage';
 import Features from './pages/Features';
 import HowItWorks from './pages/HowItWorks';
+import AddProduct from './pages/AddProduct';
+import EditProduct from './pages/EditProduct';
 import './index.css';
 
 function App() {
@@ -136,6 +138,14 @@ function App() {
           <Route 
             path="/:shopId/dashboard" 
             element={vendor ? <Dashboard primaryColor={primaryColor} /> : <Navigate to="/login" replace />} 
+          />
+          <Route 
+            path="/:shopId/products/add" 
+            element={vendor ? <AddProduct /> : <Navigate to="/login" replace />} 
+          />
+          <Route 
+            path="/:shopId/products/edit/:productId" 
+            element={vendor ? <EditProduct /> : <Navigate to="/login" replace />} 
           />
           <Route 
             path="/products" 

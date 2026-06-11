@@ -153,6 +153,22 @@ const updateShopAdmin = async (req, res) => {
     }
 };
 
+const updateShopConfig = async (req, res) => {
+    const { shopId } = req.params;
+    const { config } = req.body;
+    if (!config) {
+        return sendError(res, 'config field is required', 400);
+    }
+    try {
+        const shop = await aiService.updateShopConfig(shopId, config);
+        if (!shop) return sendError(res, 'Shop not found', 404);
+        sendSuccess(res, shop);
+    } catch (error) {
+        console.error('[AI Controller] Error updating shop config:', error);
+        sendError(res, 'Failed to update shop configuration');
+    }
+};
+
 const deleteShopAdmin = async (req, res) => {
     const { id } = req.params;
     try {
@@ -175,5 +191,6 @@ module.exports = {
     getAllShopsAdmin,
     toggleShopApprovalAdmin,
     updateShopAdmin,
+    updateShopConfig,
     deleteShopAdmin
 };

@@ -41,8 +41,21 @@ const createOrder = async ({ customer_id, vendor_id, shop_id, product_id, quanti
     await pool.query(addressQuery, [
         order.id, customer_id, customer_name, customer_phone, address_line, city, zip_code
     ]);
+
+    // Send order_created event asynchronously to Analytics Service
+    const analyticsUrl = process.env.ANALYTICS_SERVICE_URL || 'http://analytics:5003';
+    axios.post(`${analyticsUrl}/events/test`, {
+        event_type: 'order_created',
+        vendor_id: String(vendor_id),
+        product_id: String(product_id),
+        user_id: String(customer_id),
+        quantity: quantity,
+        price: total_price
+    }).catch(err => {
+        console.error(`[Order Service] Failed to send order_created event to analytics:`, err.message);
+    });
     
-    return rows[0];
+    return order;
 };
 
 const updateOrderStatus = async (orderId, vendorId, newStatus) => {

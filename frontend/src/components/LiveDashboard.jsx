@@ -6,10 +6,10 @@ import KPISection from './analytics/KPISection';
 import ViewsChart from './analytics/ViewsChart';
 import OrdersChart from './analytics/OrdersChart';
 import TopProducts from './analytics/TopProducts';
-
 const SOCKET_SERVER_URL = 'http://localhost:5003';
 
-const LiveDashboard = () => {
+const LiveDashboard = ({ vendorId }) => {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   const [isConnected, setIsConnected] = useState(false);
   const [stats, setStats] = useState({ totalViews: 0, totalOrders: 0, arOpens: 0, recommendationClicks: 0 });
   const [events, setEvents] = useState([]);
@@ -21,20 +21,28 @@ const LiveDashboard = () => {
   const statsRef = useRef(stats);
 
   useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
     eventsRef.current = events;
     statsRef.current = stats;
   }, [events, stats]);
 
   useEffect(() => {
+    const suffix = vendorId ? `?vendor_id=${vendorId}` : '';
+
     // 1. Initial Fetch for REST data
     const fetchInitialData = async () => {
       try {
         const [kpiRes, viewsRes, ordersRes, productsRes, eventsRes] = await Promise.all([
-          fetch(`${SOCKET_SERVER_URL}/analytics/kpis`).then(res => res.json()),
-          fetch(`${SOCKET_SERVER_URL}/analytics/charts/views`).then(res => res.json()),
-          fetch(`${SOCKET_SERVER_URL}/analytics/charts/orders`).then(res => res.json()),
-          fetch(`${SOCKET_SERVER_URL}/analytics/top-products`).then(res => res.json()),
-          fetch(`${SOCKET_SERVER_URL}/analytics/recent-events`).then(res => res.json())
+          fetch(`${SOCKET_SERVER_URL}/analytics/kpis${suffix}`).then(res => res.json()),
+          fetch(`${SOCKET_SERVER_URL}/analytics/charts/views${suffix}`).then(res => res.json()),
+          fetch(`${SOCKET_SERVER_URL}/analytics/charts/orders${suffix}`).then(res => res.json()),
+          fetch(`${SOCKET_SERVER_URL}/analytics/top-products${suffix}`).then(res => res.json()),
+          fetch(`${SOCKET_SERVER_URL}/analytics/recent-events${suffix}`).then(res => res.json())
         ]);
 
         if (kpiRes.success) setStats(kpiRes.data);
@@ -56,11 +64,17 @@ const LiveDashboard = () => {
       reconnectionDelay: 1000,
     });
 
-    socket.on('connect', () => setIsConnected(true));
+    socket.on('connect', () => {
+      setIsConnected(true);
+      if (vendorId) {
+        socket.emit('join_vendor_room', vendorId);
+      }
+    });
     socket.on('disconnect', () => setIsConnected(false));
 
     // 3. Listen for live events
-    socket.on('live_event', (eventPayload) => {
+    const eventChannel = vendorId ? 'vendor_event' : 'live_event';
+    socket.on(eventChannel, (eventPayload) => {
       
       // Update KPIs
       setStats((prev) => ({
@@ -138,23 +152,43 @@ const LiveDashboard = () => {
     return () => socket.disconnect();
   }, []);
 
+  const containerStyle = vendorId 
+    ? { background: '#0f172a', borderRadius: '24px', padding: isMobile ? '1.25rem' : '2rem', border: '1px solid #1e293b', color: 'white' }
+    : { minHeight: '100vh', background: '#0f172a', color: 'white', padding: isMobile ? '1.25rem' : '2rem' };
+
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-6 font-sans">
-      <div className="max-w-7xl mx-auto">
+    <div style={containerStyle} className="font-sans">
+      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-brand-DEFAULT to-brand-dark bg-clip-text text-transparent flex items-center gap-3">
-              <BarChart2 className="text-brand-DEFAULT" />
-              Advanced Analytics Hub
-            </h1>
-            <p className="text-slate-400 mt-1">Real-time charts powered by Recharts & PostgreSQL Aggregation</p>
+            <h2 style={{ fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: '900', color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <BarChart2 className="text-brand-DEFAULT" style={{ color: '#6366f1' }} />
+              Live Operations Analytics
+            </h2>
+            <p style={{ color: '#94a3b8', margin: '4px 0 0 0', fontSize: '0.85rem' }}>Real-time telemetry powered by Redis Streams & PostgreSQL</p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-300">Socket.io:</span>
-            <div className={`px-3 py-1 rounded-full text-xs font-bold ${isConnected ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'} flex items-center gap-2 transition-colors`}>
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
-              {isConnected ? 'LIVE' : 'RECONNECTING'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Stream Status:</span>
+            <div style={{
+              background: isConnected ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+              color: isConnected ? '#10b981' : '#ef4444',
+              padding: '4px 12px',
+              borderRadius: '50px',
+              fontSize: '0.75rem',
+              fontWeight: '700',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <div style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: isConnected ? '#10b981' : '#ef4444',
+                animation: isConnected ? 'ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite' : 'none'
+              }} />
+              {isConnected ? 'ONLINE' : 'RECONNECTING'}
             </div>
           </div>
         </div>
@@ -163,22 +197,22 @@ const LiveDashboard = () => {
         <KPISection data={stats} />
 
         {/* Dashboard Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: '1.5rem', marginTop: '1.5rem' }}>
           
-          <div className="lg:col-span-2 flex flex-col gap-6">
-            <div className="h-[350px]">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ height: '350px' }}>
               <ViewsChart data={viewsData} />
             </div>
-            <div className="h-[350px]">
+            <div style={{ height: '350px' }}>
               <OrdersChart data={ordersData} />
             </div>
           </div>
 
-          <div className="lg:col-span-1 flex flex-col gap-6">
-            <div className="h-[400px]">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ height: '400px' }}>
               <TopProducts products={topProducts} />
             </div>
-            <div className="flex-1">
+            <div style={{ flex: 1, minHeight: '300px' }}>
               <EventFeed events={events} />
             </div>
           </div>

@@ -22,6 +22,75 @@ const ShopView = () => {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [cartItems, setCartItems] = useState([]);
   const [showCartModal, setShowCartModal] = useState(false);
+  const [activeLink, setActiveLink] = useState('');
+  
+  useEffect(() => {
+    if (shop && shop.navigation && !activeLink) {
+      setActiveLink(shop.navigation[0]);
+    }
+  }, [shop]);
+
+  const isProductLink = (link) => {
+    if (!link) return false;
+    const lower = link.toLowerCase();
+    return ['shop', 'fresh fruits', 'men', 'women', 'collections', 'products'].includes(lower);
+  };
+
+  const isOffersLink = (link) => {
+    if (!link) return false;
+    const lower = link.toLowerCase();
+    return ['offers', 'offres'].includes(lower);
+  };
+
+  const getFilteredProducts = () => {
+    if (!shop || !shop.products) return [];
+    
+    const genericLinks = ['shop', 'products', 'collections', 'our collection'];
+    const productLinks = shop.navigation?.filter(isProductLink) || [];
+    const specificProductLinks = productLinks.filter(link => !genericLinks.includes(link.toLowerCase()));
+    
+    const productMatchesLink = (product, link) => {
+      const linkLower = link.toLowerCase();
+      if (genericLinks.includes(linkLower)) {
+        return true;
+      }
+      
+      const searchFields = [
+        product.name,
+        product.description,
+        product.category
+      ].filter(Boolean).map(f => f.toLowerCase());
+      
+      return searchFields.some(field => {
+        if (linkLower === 'men') {
+          const regex = /\bmen(s)?\b/i;
+          return regex.test(field);
+        }
+        if (linkLower === 'women') {
+          const regex = /\bwomen(s)?\b/i;
+          return regex.test(field);
+        }
+        return field.includes(linkLower);
+      });
+    };
+    
+    return shop.products.filter(product => {
+      if (genericLinks.includes(activeLink.toLowerCase())) {
+        return true;
+      }
+      
+      if (productMatchesLink(product, activeLink)) {
+        return true;
+      }
+      
+      const matchesAnySpecificLink = specificProductLinks.some(link => productMatchesLink(product, link));
+      if (!matchesAnySpecificLink) {
+        return true;
+      }
+      
+      return false;
+    });
+  };
   
   // Checkout Modal State
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
@@ -42,6 +111,10 @@ const ShopView = () => {
   const [arLoading, setArLoading] = useState(false);
 
   const handleOpenAR = async (productId) => {
+    if (!productId) {
+      alert("No 3D/AR model found for this product yet.");
+      return;
+    }
     setArLoading(productId);
     try {
       const response = await axios.get(`http://localhost:5006/models/product/${productId}`);
@@ -51,6 +124,17 @@ const ShopView = () => {
         setShowArModal(true);
         // Track 3D View Analytics
         axios.post(`http://localhost:5006/models/product/${productId}/analytics`, { type: '3d' }).catch(console.error);
+
+        // Track central ar_opened analytics
+        const product = shop?.products?.find(p => p.id === productId);
+        if (product) {
+          axios.post(`http://localhost:5003/events/test`, {
+            event_type: 'ar_opened',
+            vendor_id: String(shop.vendor_id),
+            product_id: String(product.name),
+            user_id: user ? String(user.id) : null
+          }).catch(err => console.error("Failed to post ar_opened analytics:", err));
+        }
       }
     } catch (err) {
        if (err.response?.status === 404) {
@@ -113,6 +197,16 @@ const ShopView = () => {
               });
               
               shopData.products = enrichedProducts;
+
+              // Track product views in central Analytics Service
+              enrichedProducts.forEach(prod => {
+                axios.post(`http://localhost:5003/events/test`, {
+                  event_type: 'product_view',
+                  vendor_id: String(shopData.vendor_id),
+                  product_id: String(prod.name),
+                  user_id: localStorage.getItem('customer') ? String(JSON.parse(localStorage.getItem('customer')).id) : null
+                }).catch(err => console.error("Failed to track product_view event:", err));
+              });
             }
           } catch (pErr) {
             console.warn("Could not fetch real products for enrichment:", pErr);
@@ -310,6 +404,8 @@ const ShopView = () => {
   const secondaryColor = shop.theme?.secondary || '#eab308';
   const textColor = shop.theme?.text || '#451a03';
   const backgroundColor = shop.theme?.background || '#ffffff';
+  
+  const filteredProducts = getFilteredProducts();
 
   return (
     <div className="shop-view" style={{ minHeight: '100vh', paddingBottom: '4rem', background: backgroundColor }}>
@@ -336,20 +432,26 @@ const ShopView = () => {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           {/* Desktop Nav Items */}
-          {!isMobile && shop.navigation?.map((item, idx) => (
-            <span key={item + idx} style={{ 
-              fontSize: '0.95rem', 
-              fontWeight: '600', 
-              color: textColor, 
-              cursor: 'pointer',
-              transition: 'color 0.2s'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.color = primaryColor}
-            onMouseOut={(e) => e.currentTarget.style.color = textColor}
-            >
-              {item}
-            </span>
-          ))}
+          {!isMobile && shop.navigation?.map((item, idx) => {
+            const isActive = activeLink === item;
+            return (
+              <span key={item + idx} style={{ 
+                fontSize: '0.95rem', 
+                fontWeight: isActive ? '800' : '600', 
+                color: isActive ? primaryColor : textColor, 
+                borderBottom: isActive ? `2px solid ${primaryColor}` : 'none',
+                paddingBottom: '4px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onClick={() => setActiveLink(item)}
+              onMouseOver={(e) => { if (!isActive) e.currentTarget.style.color = primaryColor; }}
+              onMouseOut={(e) => { if (!isActive) e.currentTarget.style.color = textColor; }}
+              >
+                {item}
+              </span>
+            );
+          })}
 
           {/* Shop Specific Orders Link */}
           {!isMobile && user && (
@@ -426,19 +528,28 @@ const ShopView = () => {
           gap: '1.5rem',
           animation: 'slideIn 0.3s ease-out'
         }}>
-          {shop.navigation?.map((item, idx) => (
-            <div key={idx} style={{ 
-              fontSize: '1.25rem', 
-              fontWeight: '700', 
-              color: textColor,
-              padding: '1rem',
-              borderBottom: `1px solid ${primaryColor}22`
-            }}
-            onClick={() => setIsMenuOpen(false)}
-            >
-              {item}
-            </div>
-          ))}
+          {shop.navigation?.map((item, idx) => {
+            const isActive = activeLink === item;
+            return (
+              <div key={idx} style={{ 
+                fontSize: '1.25rem', 
+                fontWeight: '700', 
+                color: isActive ? primaryColor : textColor,
+                padding: '1rem',
+                borderBottom: `1px solid ${primaryColor}22`,
+                background: isActive ? `${primaryColor}11` : 'transparent',
+                borderRadius: '8px',
+                cursor: 'pointer'
+              }}
+              onClick={() => {
+                setActiveLink(item);
+                setIsMenuOpen(false);
+              }}
+              >
+                {item}
+              </div>
+            );
+          })}
 
           {/* Mobile Orders Link */}
           {user && (
@@ -497,145 +608,227 @@ const ShopView = () => {
 
       {/* SHOP HERO */}
       <div style={{ 
-        background: `linear-gradient(135deg, ${primaryColor}22, ${secondaryColor}22)`, 
-        padding: '5rem 2rem', 
+        backgroundImage: shop.navigationContent?.["Home_heroImageUrl"] 
+          ? `linear-gradient(rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.45)), url(${shop.navigationContent["Home_heroImageUrl"]})` 
+          : `linear-gradient(135deg, ${primaryColor}22, ${secondaryColor}22)`, 
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        padding: '6rem 2rem', 
         textAlign: 'center',
         marginBottom: '3rem',
-        borderBottom: `1px solid ${primaryColor}11`
+        borderBottom: `1px solid ${primaryColor}11`,
+        color: shop.navigationContent?.["Home_heroImageUrl"] ? '#ffffff' : textColor
       }}>
-        <h1 style={{ fontSize: '4rem', fontWeight: '900', color: textColor, marginBottom: '1.5rem' }}>Welcome to <span style={{ color: primaryColor }}>{shop.shopName}</span></h1>
+        <h1 style={{ fontSize: '4rem', fontWeight: '900', color: shop.navigationContent?.["Home_heroImageUrl"] ? '#ffffff' : textColor, marginBottom: '1.5rem' }}>
+          Welcome to <span style={{ color: shop.navigationContent?.["Home_heroImageUrl"] ? '#ffffff' : primaryColor }}>{shop.shopName}</span>
+        </h1>
         <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: textColor, opacity: 0.8, fontWeight: '600' }}><Star size={18} fill={secondaryColor} color={secondaryColor} /> 4.9 (120+ Reviews)</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: textColor, opacity: 0.8, fontWeight: '600' }}><Package size={18} color={primaryColor} /> Fast Delivery</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: textColor, opacity: 0.8, fontWeight: '600' }}><Phone size={18} color={primaryColor} /> Verified Vendor</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: shop.navigationContent?.["Home_heroImageUrl"] ? '#f1f5f9' : textColor, opacity: 0.9, fontWeight: '600' }}><Star size={18} fill={secondaryColor} color={secondaryColor} /> 4.9 (120+ Reviews)</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: shop.navigationContent?.["Home_heroImageUrl"] ? '#f1f5f9' : textColor, opacity: 0.9, fontWeight: '600' }}><Package size={18} color={shop.navigationContent?.["Home_heroImageUrl"] ? '#ffffff' : primaryColor} /> Fast Delivery</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: shop.navigationContent?.["Home_heroImageUrl"] ? '#f1f5f9' : textColor, opacity: 0.9, fontWeight: '600' }}><Phone size={18} color={shop.navigationContent?.["Home_heroImageUrl"] ? '#ffffff' : primaryColor} /> Verified Vendor</div>
         </div>
       </div>
 
-      {/* PRODUCTS GRID */}
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2.5rem' }}>
+      {/* DYNAMIC CONTENT CONTAINER BASED ON ACTIVE NAV LINK */}
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 1rem', minHeight: '400px' }}>
+        {isProductLink(activeLink) ? (
+          /* --- PRODUCTS CATALOG VIEW --- */
           <div>
-            <h2 style={{ fontSize: '2.25rem', fontWeight: '800', color: textColor, marginBottom: '0.5rem' }}>Our Collection</h2>
-            <div style={{ width: '80px', height: '6px', background: primaryColor, borderRadius: '10px' }}></div>
-          </div>
-          <div style={{ color: textColor, opacity: 0.6, fontWeight: '600', fontSize: '0.9rem' }}>Showing {shop.products?.length || 0} results</div>
-        </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2.5rem' }}>
+              <div>
+                <h2 style={{ fontSize: '2.25rem', fontWeight: '800', color: textColor, marginBottom: '0.5rem' }}>Our Collection</h2>
+                <div style={{ width: '80px', height: '6px', background: primaryColor, borderRadius: '10px' }}></div>
+              </div>
+              <div style={{ color: textColor, opacity: 0.6, fontWeight: '600', fontSize: '0.9rem' }}>Showing {filteredProducts.length} results</div>
+            </div>
 
-        {orderStatus && (
-          <div className="animate-fade-in" style={{ 
-            position: 'fixed', 
-            bottom: '2rem', 
-            right: '2rem', 
-            left: isMobile ? '2rem' : 'auto',
-            background: orderStatus.type === 'error' ? '#ef4444' : primaryColor, 
-            color: 'white', 
-            padding: '1rem 2rem', 
-            borderRadius: '12px', 
-            boxShadow: orderStatus.type === 'error' ? '0 10px 15px -3px rgba(239,68,68,0.4)' : `0 10px 15px -3px ${primaryColor}66`,
-            zIndex: 2000,
-            fontWeight: '700',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            maxWidth: '500px'
-          }}>
-            <ShoppingCart size={20} /> {orderStatus.text}
-          </div>
-        )}
-
-        <div className="product-grid">
-          {shop.products?.map((product, idx) => (
-            <div key={idx} className="glass-card animate-fade-in" style={{ 
-              padding: '1.5rem', 
-              transition: 'all 0.3s ease',
-              animationDelay: `${idx * 0.1}s`,
-              border: '1px solid var(--glass-border)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1.25rem'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.borderColor = primaryColor}
-            onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--glass-border)'}
-            >
-              <div style={{ 
-                height: '200px', 
-                background: `linear-gradient(135deg, ${primaryColor}22, ${secondaryColor}22)`, 
-                borderRadius: '16px',
+            {orderStatus && (
+              <div className="animate-fade-in" style={{ 
+                position: 'fixed', 
+                bottom: '2rem', 
+                right: '2rem', 
+                left: isMobile ? '2rem' : 'auto',
+                background: orderStatus.type === 'error' ? '#ef4444' : primaryColor, 
+                color: 'white', 
+                padding: '1rem 2rem', 
+                borderRadius: '12px', 
+                boxShadow: orderStatus.type === 'error' ? '0 10px 15px -3px rgba(239,68,68,0.4)' : `0 10px 15px -3px ${primaryColor}66`,
+                zIndex: 2000,
+                fontWeight: '700',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                color: primaryColor,
-                overflow: 'hidden'
+                gap: '10px',
+                maxWidth: '500px'
               }}>
-                <Package size={64} style={{ opacity: 0.8 }} />
+                <ShoppingCart size={20} /> {orderStatus.text}
               </div>
+            )}
 
-              <div>
-                <h4 style={{ fontSize: '1.25rem', fontWeight: '700', color: textColor, marginBottom: '0.25rem' }}>{product.name}</h4>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '8px' }}>
-                  <span style={{ fontSize: '1.5rem', fontWeight: '800', color: primaryColor }}>LKR {parseFloat(product.price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span>
-                  
-                  {/* AR View Button */}
-                  <button 
-                    onClick={() => handleOpenAR(product.id)}
-                    disabled={arLoading === product.id}
-                    style={{ background: `${secondaryColor}22`, border: `1px solid ${secondaryColor}`, color: secondaryColor, padding: '4px 10px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+            {filteredProducts && filteredProducts.length > 0 ? (
+              <div className="product-grid">
+                {filteredProducts.map((product, idx) => (
+                  <div key={idx} className="glass-card animate-fade-in" style={{ 
+                    padding: '1.5rem', 
+                    transition: 'all 0.3s ease',
+                    animationDelay: `${idx * 0.1}s`,
+                    border: '1px solid var(--glass-border)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1.25rem'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = primaryColor}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--glass-border)'}
                   >
-                    <Box size={16} /> {arLoading === product.id ? 'Loading...' : 'View in 3D / AR'}
-                  </button>
-                </div>
-                
-                {product.description && (
-                  <p style={{ fontSize: '0.85rem', color: textColor, marginBottom: '1.25rem', lineHeight: '1.5', opacity: 0.7 }}>
-                    {product.description}
-                  </p>
-                )}
+                    <div style={{ 
+                      height: '200px', 
+                      background: `linear-gradient(135deg, ${primaryColor}22, ${secondaryColor}22)`, 
+                      borderRadius: '16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: primaryColor,
+                      overflow: 'hidden'
+                    }}>
+                      {product.image ? (
+                        <img 
+                          src={product.image} 
+                          alt={product.name} 
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                        />
+                      ) : (
+                        <Package size={64} style={{ opacity: 0.8 }} />
+                      )}
+                    </div>
 
-                {/* Quantity Selector */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: '700', color: textColor, opacity: 0.7 }}>Qty:</span>
-                  <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${primaryColor}44`, borderRadius: '10px', overflow: 'hidden' }}>
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(idx, -1)}
-                      style={{ background: 'none', border: 'none', padding: '6px 12px', cursor: 'pointer', color: primaryColor, fontWeight: '800', fontSize: '1rem' }}
-                    >
-                      <Minus size={16} />
-                    </button>
-                    <span style={{ padding: '6px 14px', fontWeight: '800', color: textColor, fontSize: '0.95rem', minWidth: '30px', textAlign: 'center' }}>
-                      {getQuantity(idx)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(idx, 1)}
-                      style={{ background: 'none', border: 'none', padding: '6px 12px', cursor: 'pointer', color: primaryColor, fontWeight: '800', fontSize: '1rem' }}
-                    >
-                      <Plus size={16} />
-                    </button>
+                    <div>
+                      <h4 style={{ fontSize: '1.25rem', fontWeight: '700', color: textColor, marginBottom: '0.25rem' }}>{product.name}</h4>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '8px' }}>
+                        <span style={{ fontSize: '1.5rem', fontWeight: '800', color: primaryColor }}>LKR {parseFloat(product.price || 0).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</span>
+                        
+                        <button 
+                          onClick={() => handleOpenAR(product.id)}
+                          disabled={arLoading === product.id}
+                          style={{ background: `${secondaryColor}22`, border: `1px solid ${secondaryColor}`, color: secondaryColor, padding: '4px 10px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+                        >
+                          <Box size={16} /> {arLoading === product.id ? 'Loading...' : 'View in 3D / AR'}
+                        </button>
+                      </div>
+                      
+                      {product.description && (
+                        <p style={{ fontSize: '0.85rem', color: textColor, marginBottom: '1.25rem', lineHeight: '1.5', opacity: 0.7 }}>
+                          {product.description}
+                        </p>
+                      )}
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: '700', color: textColor, opacity: 0.7 }}>Qty:</span>
+                        <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${primaryColor}44`, borderRadius: '10px', overflow: 'hidden' }}>
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(idx, -1)}
+                            style={{ background: 'none', border: 'none', padding: '6px 12px', cursor: 'pointer', color: primaryColor, fontWeight: '800', fontSize: '1rem' }}
+                          >
+                            <Minus size={16} />
+                          </button>
+                          <span style={{ padding: '6px 14px', fontWeight: '800', color: textColor, fontSize: '0.95rem', minWidth: '30px', textAlign: 'center' }}>
+                            {getQuantity(idx)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(idx, 1)}
+                            style={{ background: 'none', border: 'none', padding: '6px 12px', cursor: 'pointer', color: primaryColor, fontWeight: '800', fontSize: '1rem' }}
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button 
+                          onClick={() => handleAddToCart(product, idx)}
+                          className="btn-primary" 
+                          style={{ flex: 1, background: `transparent`, border: `2px solid ${primaryColor}`, color: primaryColor }}
+                        >
+                          Add to Cart
+                        </button>
+                        <button 
+                          onClick={() => handleOrder(product, idx)}
+                          disabled={orderLoading === idx}
+                          className="btn-primary" 
+                          style={{ flex: 1, background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`, border: 'none', opacity: orderLoading === idx ? 0.7 : 1 }}
+                        >
+                          {orderLoading === idx ? 'Placing...' : 'Buy Now'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button 
-                    onClick={() => handleAddToCart(product, idx)}
-                    className="btn-primary" 
-                    style={{ flex: 1, background: `transparent`, border: `2px solid ${primaryColor}`, color: primaryColor }}
-                  >
-                    Add to Cart
-                  </button>
-                  <button 
-                    onClick={() => handleOrder(product, idx)}
-                    disabled={orderLoading === idx}
-                    className="btn-primary" 
-                    style={{ flex: 1, background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`, border: 'none', opacity: orderLoading === idx ? 0.7 : 1 }}
-                  >
-                    {orderLoading === idx ? 'Placing...' : 'Buy Now'}
-                  </button>
-                </div>
+                ))}
               </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '4rem 1rem', color: textColor, opacity: 0.5 }}>
+                <Package size={48} style={{ margin: '0 auto 1rem', display: 'block' }} />
+                <p style={{ fontWeight: '600' }}>No products available in this shop yet.</p>
+              </div>
+            )}
+          </div>
+        ) : isOffersLink(activeLink) ? (
+          /* --- OFFERS VIEW --- */
+          <div className="glass-card animate-fade-in" style={{ padding: '3rem', border: `1px solid ${primaryColor}22`, borderRadius: '24px', background: 'rgba(255, 255, 255, 0.6)' }}>
+            <h2 style={{ fontSize: '2rem', fontWeight: '800', color: textColor, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              🎉 Exclusive Shop Offers
+            </h2>
+            <div style={{ width: '80px', height: '6px', background: primaryColor, borderRadius: '10px', marginBottom: '2rem' }}></div>
+            {shop.theme && (
+              <div style={{
+                background: `linear-gradient(135deg, ${primaryColor}11, ${secondaryColor}11)`,
+                borderLeft: `6px solid ${primaryColor}`,
+                padding: '2.5rem',
+                borderRadius: '16px',
+                color: textColor,
+                fontSize: '1.15rem',
+                lineHeight: '1.8',
+                boxShadow: '0 10px 15px -3px rgba(0,0,0,0.02)'
+              }}>
+                {shop.navigationContent?.[activeLink] ? (
+                  <p style={{ margin: 0, fontWeight: '600', whiteSpace: 'pre-wrap' }}>
+                    {shop.navigationContent[activeLink]}
+                  </p>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+                    <p style={{ margin: 0, fontWeight: '600', opacity: 0.7 }}>Special offers are on the way! Check back soon.</p>
+                    <p style={{ margin: '8px 0 0 0', fontSize: '0.9rem', opacity: 0.5 }}>Contact the vendor for details on custom products or discounts.</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* --- CUSTOM TEXT / HOME VIEW --- */
+          <div className="glass-card animate-fade-in" style={{ padding: '3rem', border: `1px solid ${primaryColor}11`, borderRadius: '24px', background: 'rgba(255, 255, 255, 0.6)' }}>
+            <h2 style={{ fontSize: '2rem', fontWeight: '800', color: textColor, marginBottom: '1.5rem' }}>
+              {activeLink}
+            </h2>
+            <div style={{ width: '80px', height: '6px', background: primaryColor, borderRadius: '10px', marginBottom: '2rem' }}></div>
+            <div style={{ color: textColor, fontSize: '1.1rem', lineHeight: '1.8', opacity: 0.9, whiteSpace: 'pre-wrap' }}>
+              {shop.navigationContent?.[activeLink] ? (
+                shop.navigationContent[activeLink]
+              ) : (
+                /* Fallback default messages */
+                activeLink === 'Home' ? (
+                  `Welcome to our storefront! We are thrilled to show you our curated selections. Explore the navigation menu to view our catalog and ongoing offers.`
+                ) : activeLink === 'Contact' ? (
+                  `Please reach out to us with any questions or custom inquiries!
+                  
+                  📍 Address: ${shop.location?.address || 'Available at local pickup'}
+                  📧 Email: support@${shop.shopName.toLowerCase().replace(/\s+/g, '')}.com
+                  📞 Phone: +1 (555) 000-0000`
+                ) : (
+                  `This page is currently being configured by the shop owner. Please check back soon!`
+                )
+              )}
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* FOOTER */}

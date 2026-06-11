@@ -5,11 +5,11 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const knowledgeBase = {
     fruit: {
-        navigation: ["Home", "Fresh Fruits", "Offers", "Contact"],
+        navigation: ["Home", "Fresh Fruits", "Offers", "offers", "Contact"],
         layout: "grid"
     },
     clothing: {
-        navigation: ["Home", "Men", "Women", "Collections", "Contact"],
+        navigation: ["Home", "Men", "Women", "Collections", "offers", "Contact"],
         layout: "modern-grid"
     }
 };
@@ -49,8 +49,8 @@ const generatePalette = (primaryHex) => {
     const { h, s, l } = hexToHSL(primaryHex);
     return {
         primary: primaryHex,
-        secondary: hslToHex(h, s, Math.min(l + 25, 95)), 
-        accent: hslToHex(h, s, Math.max(l - 20, 5)),    
+        secondary: hslToHex(h, s, Math.min(l + 25, 95)),
+        accent: hslToHex(h, s, Math.max(l - 20, 5)),
         background: "#f9fafb",
         text: "#111827"
     };
@@ -72,7 +72,7 @@ const generateShopData = async (businessType, shopName, products = [], theme = "
     console.log("[Step 1/4] Retrieving Industry Context from Knowledge Base...");
     const typeKey = businessType.toLowerCase();
     const retrievedData = knowledgeBase[typeKey] || {
-        navigation: ["Home", "Shop", "About Us", "Contact"],
+        navigation: ["Home", "Shop", "About Us", "offers", "Contact"],
         layout: "standard"
     };
     console.log(` >> Retrieved RAG Data: Nav=[${retrievedData.navigation.join(', ')}], Layout='${retrievedData.layout}'`);
@@ -85,7 +85,7 @@ const generateShopData = async (businessType, shopName, products = [], theme = "
     // --- STEP 3: AI SYNTHESIS (Gemini Prompt) ---
     console.log("[Step 3/4] Synthesizing Creative Content with Gemini AI...");
     const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
-    
+
     const context = [];
     if (products.length > 0) context.push(`Focus on these core items: ${products.join(', ')}.`);
     if (theme) context.push(`Applying vibe/theme override: '${theme}'.`);
@@ -125,7 +125,7 @@ const generateShopData = async (businessType, shopName, products = [], theme = "
         const result = await model.generateContent(prompt);
         let aiTextResponse = result.response.text();
         aiTextResponse = aiTextResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-        
+
         const finalConfig = JSON.parse(aiTextResponse);
         // Force the shopName from our side just in case AI deviates
         finalConfig.shopName = finalShopName;
@@ -134,7 +134,7 @@ const generateShopData = async (businessType, shopName, products = [], theme = "
 
     } catch (error) {
         console.warn(` >> AI synthesis failed: ${error.message}. Triggering Smart Fallback.`);
-        
+
         // --- STEP 1x: SMART FALLBACK (Backup Assembly) ---
         const fallbacks = {
             fruit: ["Apple", "Banana", "Mango", "Orange"],
@@ -144,7 +144,7 @@ const generateShopData = async (businessType, shopName, products = [], theme = "
         };
 
         const defaultItems = fallbacks[typeKey] || ["Item A", "Item B", "Item C", "Item D"];
-        
+
         const fallbackConfig = {
             shopName: finalShopName,
             navigation: retrievedData.navigation,
@@ -166,7 +166,7 @@ const pushShopLocation = async (shop) => {
     if (shop) {
         try {
             const axios = require('axios');
-            
+
             let lat, lon;
             if (shop.location) {
                 const locObj = typeof shop.location === 'string' ? JSON.parse(shop.location) : shop.location;
@@ -175,13 +175,13 @@ const pushShopLocation = async (shop) => {
                     lon = parseFloat(locObj.lon || locObj.lng);
                 }
             }
-            
+
             // If no location was given, do not set default hardcoded location, keep it null
             if (lat === undefined || lon === undefined) {
                 console.log(`[AI Service] No location provided for shop ${shop.id}. Skipping Location Service update.`);
                 return;
             }
-            
+
             const locationServiceUrl = process.env.LOCATION_SERVICE_URL || 'http://location:5007';
             await axios.post(`${locationServiceUrl}/shops/location`, {
                 shopId: shop.id,
@@ -203,10 +203,10 @@ const saveShop = async (vendorId, shopName, config, isPublished = false, locatio
         RETURNING *;
     `;
     const { rows } = await pool.query(query, [
-        vendorId, 
-        shopName, 
-        JSON.stringify(config), 
-        isPublished, 
+        vendorId,
+        shopName,
+        JSON.stringify(config),
+        isPublished,
         location ? JSON.stringify(location) : null
     ]);
     const shop = rows[0];
@@ -249,12 +249,13 @@ const getPublicShops = async () => {
     // 🔒 Security Check: Only display shops that are published AND approved by admin
     const query = `SELECT id, vendor_id, shop_name, config, location FROM shops WHERE is_published = true AND is_approved = true ORDER BY created_at DESC;`;
     const { rows } = await pool.query(query);
-    
+
     return rows.map(shop => ({
         id: shop.id,
         vendor_id: shop.vendor_id,
         shopName: shop.shop_name,
         navigation: shop.config?.navigation || [],
+        navigationContent: shop.config?.navigationContent || {},
         products: shop.config?.products || [],
         theme: shop.config?.theme || {},
         location: shop.location || null
@@ -265,15 +266,16 @@ const getPublicShopById = async (id) => {
     // 🔒 Security Check: Only allow viewing a shop if it is published AND approved
     const query = `SELECT id, vendor_id, shop_name, config, location FROM shops WHERE id = $1 AND is_published = true AND is_approved = true;`;
     const { rows } = await pool.query(query, [id]);
-    
+
     if (rows.length === 0) return null;
-    
+
     const shop = rows[0];
     return {
         id: shop.id,
         vendor_id: shop.vendor_id,
         shopName: shop.shop_name,
         navigation: shop.config?.navigation || [],
+        navigationContent: shop.config?.navigationContent || {},
         products: shop.config?.products || [],
         theme: shop.config?.theme || {},
         location: shop.location || null
@@ -320,6 +322,20 @@ const updateShopAdmin = async (shopId, updateData) => {
     return rows[0];
 };
 
+const updateShopConfig = async (shopId, config) => {
+    const query = `
+        UPDATE shops
+        SET config = $1
+        WHERE id = $2
+        RETURNING *;
+    `;
+    const { rows } = await pool.query(query, [
+        JSON.stringify(config),
+        shopId
+    ]);
+    return rows[0];
+};
+
 const deleteShopAdmin = async (shopId) => {
     const query = `DELETE FROM shops WHERE id = $1 RETURNING *;`;
     const { rows } = await pool.query(query, [shopId]);
@@ -348,5 +364,6 @@ module.exports = {
     findAllShopsAdmin,
     toggleShopApproval,
     updateShopAdmin,
+    updateShopConfig,
     deleteShopAdmin
 };

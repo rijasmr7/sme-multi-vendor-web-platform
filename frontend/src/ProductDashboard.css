@@ -16,7 +16,7 @@
 .header-icon {
   background: #6366f1;
   padding: 12px;
-  borderRadius: 12px;
+  border-radius: 12px;
   margin-bottom: 1rem;
   box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.3);
 }
@@ -102,6 +102,8 @@
   font-family: inherit;
   font-size: 0.95rem;
   transition: all 0.2s;
+  color: #1e293b !important;
+  background-color: #ffffff !important;
 }
 
 .form-group input:focus, .form-group textarea:focus {

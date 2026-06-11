@@ -17,6 +17,7 @@ from services.evaluation_service import EvaluationService
 from services.location_service import LocationService
 from services.realtime_service import RealtimeService
 import urllib.request
+import time
 
 load_dotenv()
 
@@ -53,6 +54,8 @@ df_products = pd.DataFrame()
 is_data_loaded = False
 global_real_orders = []
 global_valid_history = []
+last_load_time = 0
+CACHE_EXPIRATION_SECONDS = 30
 
 def fetch_user_city(user_id):
     try:
@@ -165,9 +168,12 @@ def generate_bulk_explanations(target_product, rec_products, context=None):
 # -------------------------------------------------------------
 
 def ensure_real_data_loaded():
-    global is_data_loaded, df_products, global_real_orders, global_valid_history
-    if is_data_loaded:
+    global is_data_loaded, df_products, global_real_orders, global_valid_history, last_load_time
+    current_time = time.time()
+    if is_data_loaded and (current_time - last_load_time) < CACHE_EXPIRATION_SECONDS:
         return
+        
+    print("Recommender: Fetching fresh products/orders from DB...")
         
     real_prods = fetch_real_products()
     if real_prods and len(real_prods) > 0:
@@ -224,6 +230,7 @@ def ensure_real_data_loaded():
             print("SVD: No valid real orders found yet. Falling back to default scoring.")
         
         is_data_loaded = True
+        last_load_time = current_time
 
 # router_location_aware = None # placeholder reference if needed
 
@@ -320,11 +327,14 @@ async def get_explained_recommendations(user_id: int, product_id: Optional[int] 
             essential_cats = ['grocery', 'food', 'clothing', 'bakery', 'dairy', 'fruit']
             # Get a diverse sample by picking random items from different categories if possible
             essentials = df_products[df_products['category'].str.lower().isin(essential_cats)]
-            if not essentials.empty:
+            # Drop duplicates by name to avoid duplicate recommendations
+            essentials_unique = essentials.drop_duplicates(subset=['name'])
+            if not essentials_unique.empty:
                 # Shuffle and pick up to 3
-                sampled = essentials.sample(n=min(3, len(essentials)))
+                sampled = essentials_unique.sample(n=min(3, len(essentials_unique)))
             else:
-                sampled = df_products.sample(n=min(3, len(df_products)))
+                df_products_unique = df_products.drop_duplicates(subset=['name'])
+                sampled = df_products_unique.sample(n=min(3, len(df_products_unique)))
             
             for _, row in sampled.iterrows():
                 recommendations.append({

@@ -135,7 +135,7 @@ app.get('/public/products/vendor/:vendorId', async (req, res) => {
     try {
         const vendorId = req.params.vendorId;
         console.log(`>>> [Gateway] Forwarding GET /public/products/vendor/${vendorId}`);
-        const response = await axios.get(`${SERVICES.product}/products/vendor/${vendorId}`);
+        const response = await axios.get(`${SERVICES.product}/products/public/vendor/${vendorId}`);
         res.status(response.status).json(response.data);
     } catch (error) {
         handleError(res, error, 'Product Service');
@@ -250,6 +250,18 @@ app.put('/shops/publish/:shopId', async (req, res) => {
         const shopId = req.params.shopId;
         console.log(`>>> [Gateway] Forwarding PUT /shops/publish/${shopId}`);
         const response = await axios.put(`${SERVICES.ai}/shops/publish/${shopId}`);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'AI Service');
+    }
+});
+
+// PUT /shops/:shopId/config -> Forward to AI service
+app.put('/shops/:shopId/config', async (req, res) => {
+    try {
+        const shopId = req.params.shopId;
+        console.log(`>>> [Gateway] Forwarding PUT /shops/${shopId}/config`);
+        const response = await axios.put(`${SERVICES.ai}/shops/${shopId}/config`, req.body);
         res.status(response.status).json(response.data);
     } catch (error) {
         handleError(res, error, 'AI Service');
