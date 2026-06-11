@@ -34,6 +34,8 @@ import RegionalTrends from './components/geo/RegionalTrends';
 import LiveGeoActivity from './components/geo/LiveGeoActivity';
 import VendorTrafficPanel from './components/geo/VendorTrafficPanel';
 import ShopProductsList from './components/ShopProductsList';
+import ShopOrdersList from './components/ShopOrdersList';
+import ShopCustomersList from './components/ShopCustomersList';
 import LiveDashboard from './components/LiveDashboard';
 
 const API_GATEWAY = 'http://localhost:5000';
@@ -125,6 +127,7 @@ function Dashboard() {
           onEditStore={() => setShowEditModal(true)}
           onShopUpdated={setSelectedShop}
           onProductsUpdated={setRecentProducts}
+          onOrdersUpdated={setVendorOrders}
         />
       ) : (
         <DraftShopDashboard 
@@ -220,7 +223,7 @@ function SelectionPage({ shops, onSelect }) {
 // ==========================================
 // VIEW 2: LIVE SHOP DASHBOARD
 // ==========================================
-function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiveTab, onEditStore, onShopUpdated, onProductsUpdated }) {
+function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiveTab, onEditStore, onShopUpdated, onProductsUpdated, onOrdersUpdated }) {
   const navigate = useNavigate();
   const primary = shop.config?.theme?.primary || '#6366f1';
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -320,7 +323,6 @@ function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiv
           <SidebarLink icon={<Package size={18} />} label="Products" active={activeTab === 'products'} onClick={() => setActiveTab('products')} color={primary} isMobile={isMobile} />
           <SidebarLink icon={<ClipboardList size={18} />} label="Orders" active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} color={primary} isMobile={isMobile} />
           <SidebarLink icon={<User size={18} />} label="Customers" active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} color={primary} isMobile={isMobile} />
-          <SidebarLink icon={<Settings size={18} />} label="Store Settings" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} color={primary} isMobile={isMobile} />
         </nav>
       </aside>
 
@@ -409,6 +411,19 @@ function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiv
               <LiveGeoActivity liveEvents={liveEvents} />
             </div>
           </div>
+        ) : activeTab === 'orders' ? (
+          <ShopOrdersList
+            shop={shop}
+            orders={shopOrders}
+            onOrdersUpdated={onOrdersUpdated}
+            primaryColor={primary}
+          />
+        ) : activeTab === 'customers' ? (
+          <ShopCustomersList
+            shop={shop}
+            orders={orders}
+            primaryColor={primary}
+          />
         ) : (
           <div style={{ textAlign: 'center', padding: '8rem 2rem', color: '#94a3b8' }}>
             <Settings size={64} style={{ marginBottom: '1.5rem', opacity: 0.2 }} />

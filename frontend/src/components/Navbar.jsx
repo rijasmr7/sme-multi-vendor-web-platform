@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Sparkles, Menu, X, LayoutDashboard, Activity, LogOut, LogIn, UserPlus, Info, Zap } from 'lucide-react';
+import { Sparkles, Menu, X, LayoutDashboard, Activity, LogOut, LogIn, UserPlus, Info, Zap, User } from 'lucide-react';
 
 const Navbar = ({ vendor, hasShop, handleLogout }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -132,6 +132,7 @@ const Navbar = ({ vendor, hasShop, handleLogout }) => {
                     <Link to="/dashboard" style={getLinkStyle('/dashboard')}><LayoutDashboard size={16} /> Dashboard</Link>
                   </>
                 )}
+                <Link to="/profile" style={getLinkStyle('/profile')}><User size={16} /> Profile</Link>
                 <div style={{ width: '1px', height: '20px', backgroundColor: 'rgba(255,255,255,0.1)' }}></div>
                 <Link to="/features" style={getLinkStyle('/features')}><Zap size={16} /> Features</Link>
                 <Link to="/how-it-works" style={getLinkStyle('/how-it-works')}><Info size={16} /> Docs</Link>
@@ -186,6 +187,7 @@ const Navbar = ({ vendor, hasShop, handleLogout }) => {
                   <Link to="/dashboard" onClick={closeMenu} style={getLinkStyle('/dashboard')}><LayoutDashboard size={18} /> Dashboard</Link>
                 </>
               )}
+              <Link to="/profile" onClick={closeMenu} style={getLinkStyle('/profile')}><User size={18} /> Profile</Link>
               <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }}></div>
               <Link to="/features" onClick={closeMenu} style={getLinkStyle('/features')}><Zap size={18} /> Features</Link>
               <Link to="/how-it-works" onClick={closeMenu} style={getLinkStyle('/how-it-works')}><Info size={18} /> Docs</Link>

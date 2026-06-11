@@ -75,14 +75,14 @@ const updateOrderStatus = async (orderId, vendorId, newStatus) => {
     }
 
     const currentStatus = order.status;
-    const validStatuses = ['pending', 'confirmed', 'completed', 'cancelled', 'ready_for_pickup', 'delivered'];
+    const validStatuses = ['pending', 'confirmed', 'completed', 'cancelled', 'ready_for_pickup', 'delivered', 'rejected'];
 
     if (!validStatuses.includes(newStatus)) {
         throw new Error(`Invalid status: ${newStatus}`);
     }
 
-    // Optional: Validate transitions (e.g. cannot change if cancelled)
-    if (currentStatus === 'cancelled' || currentStatus === 'completed') {
+    // Optional: Validate transitions (e.g. cannot change if cancelled, completed, or rejected)
+    if (currentStatus === 'cancelled' || currentStatus === 'completed' || currentStatus === 'rejected') {
         throw new Error(`Cannot change status of a ${currentStatus} order`);
     }
 
@@ -121,23 +121,29 @@ const getOrdersByCustomer = async (customerId, status, date) => {
 };
 
 const getOrdersByVendor = async (vendorId, status, date) => {
-    let query = `SELECT * FROM orders WHERE vendor_id = $1`;
+    let query = `
+        SELECT o.*, 
+               da.customer_name, da.customer_phone, da.address_line, da.city, da.zip_code
+        FROM orders o
+        LEFT JOIN delivery_address da ON o.id = da.order_id
+        WHERE o.vendor_id = $1
+    `;
     const params = [vendorId];
     let paramCount = 1;
 
     if (status) {
         paramCount++;
-        query += ` AND status = $${paramCount}`;
+        query += ` AND o.status = $${paramCount}`;
         params.push(status);
     }
     
     if (date) {
         paramCount++;
-        query += ` AND DATE(created_at) = $${paramCount}`;
+        query += ` AND DATE(o.created_at) = $${paramCount}`;
         params.push(date);
     }
 
-    query += ` ORDER BY created_at DESC;`;
+    query += ` ORDER BY o.created_at DESC;`;
 
     const { rows } = await pool.query(query, params);
     return rows;

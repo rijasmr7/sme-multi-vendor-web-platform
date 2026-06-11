@@ -13,6 +13,7 @@ import Features from './pages/Features';
 import HowItWorks from './pages/HowItWorks';
 import AddProduct from './pages/AddProduct';
 import EditProduct from './pages/EditProduct';
+import Profile from './pages/Profile';
 import './index.css';
 
 function App() {
@@ -150,6 +151,10 @@ function App() {
           <Route 
             path="/products" 
             element={vendor ? <ProductDashboard /> : <Navigate to="/login" replace />} 
+          />
+          <Route 
+            path="/profile" 
+            element={vendor ? <Profile primaryColor={primaryColor} handleLogout={handleLogout} /> : <Navigate to="/login" replace />} 
           />
 
           {/* Catch-all redirect */}

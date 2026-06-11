@@ -88,6 +88,45 @@ app.post('/customer/login', async (req, res) => {
     }
 });
 
+// 5. GET /profile -> Forward to user-service
+app.get('/profile', async (req, res) => {
+    try {
+        console.log(`>>> [Gateway] Forwarding GET /profile to User Service`);
+        const response = await axios.get(`${SERVICES.user}/profile`, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'User Service');
+    }
+});
+
+// 6. PUT /profile -> Forward to user-service
+app.put('/profile', async (req, res) => {
+    try {
+        console.log(`>>> [Gateway] Forwarding PUT /profile to User Service`);
+        const response = await axios.put(`${SERVICES.user}/profile`, req.body, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'User Service');
+    }
+});
+
+// 7. DELETE /profile -> Forward to user-service
+app.delete('/profile', async (req, res) => {
+    try {
+        console.log(`>>> [Gateway] Forwarding DELETE /profile to User Service`);
+        const response = await axios.delete(`${SERVICES.user}/profile`, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'User Service');
+    }
+});
+
 // =============================================================
 // PRODUCT SERVICE ROUTES
 // =============================================================

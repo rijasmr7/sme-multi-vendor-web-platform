@@ -31,6 +31,8 @@ router.get('/internal-bulk/users', userController.getAllUsersInternal);
 // --- PROTECTED ROUTES ---
 // These routes require a valid JWT token in the Authorization header
 router.get('/profile', authenticateToken, userController.getProfile);
+router.put('/profile', authenticateToken, userController.updateProfile);
+router.delete('/profile', authenticateToken, userController.deleteProfile);
 
 // --- ADMIN ROUTES ---
 router.get('/admin/users', authenticateToken, authorizeRole('admin'), userController.getAllUsersAdmin);

@@ -23,7 +23,7 @@ const initDatabase = async () => {
                 quantity INTEGER NOT NULL CHECK (quantity > 0) DEFAULT 1,
                 unit_price DECIMAL(10, 2) NOT NULL,
                 total_price DECIMAL(10, 2) NOT NULL,
-                status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled')),
+                status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled', 'rejected')),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
@@ -42,7 +42,7 @@ const initDatabase = async () => {
         await pool.query(`
             ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_check;
             ALTER TABLE orders ADD CONSTRAINT orders_status_check 
-            CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled', 'ready_for_pickup', 'delivered'));
+            CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled', 'ready_for_pickup', 'delivered', 'rejected'));
         `);
 
         await pool.query(`

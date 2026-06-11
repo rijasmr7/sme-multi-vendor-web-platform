@@ -301,6 +301,40 @@ const deleteUserAdmin = async (req, res) => {
     }
 };
 
+const updateProfile = async (req, res) => {
+    try {
+        const { name, email, phone, shop_name, city, password } = req.body;
+        const currentUser = await userService.findById(req.user.id);
+        if (!currentUser) return sendError(res, 'User not found', 404);
+        
+        const updated = await userService.updateUser(req.user.id, {
+            name: name || currentUser.name,
+            email: email !== undefined ? email : currentUser.email,
+            phone: phone !== undefined ? phone : currentUser.phone,
+            shop_name: shop_name !== undefined ? shop_name : currentUser.shop_name,
+            city: city !== undefined ? city : currentUser.city,
+            role: currentUser.role,
+            password: password || undefined
+        });
+        
+        sendSuccess(res, updated);
+    } catch (error) {
+        console.error('Update Profile Error:', error);
+        sendError(res, 'Failed to update profile');
+    }
+};
+
+const deleteProfile = async (req, res) => {
+    try {
+        const deleted = await userService.deleteUser(req.user.id);
+        if (!deleted) return sendError(res, 'User not found', 404);
+        sendSuccess(res, deleted);
+    } catch (error) {
+        console.error('Delete Profile Error:', error);
+        sendError(res, 'Failed to delete profile');
+    }
+};
+
 module.exports = {
     register,
     login,
@@ -308,6 +342,8 @@ module.exports = {
     customerRegister,
     customerLogin,
     getProfile,
+    updateProfile,
+    deleteProfile,
     getInternalUser,
     getAllUsersInternal,
     getAllUsersAdmin,
