@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { Store, ArrowRight, Sparkles, ShoppingBag, ClipboardList, ShoppingCart, Package, X, Compass, MapPin, TrendingUp, Brain, Users } from 'lucide-react';
+import { Store, ArrowRight, Sparkles, ShoppingBag, ClipboardList, ShoppingCart, Package, X, Compass, MapPin, TrendingUp, Brain, Users, Menu, User } from 'lucide-react';
 
 const GATEWAY_URL = 'http://localhost:5000';
 
@@ -23,6 +23,20 @@ const ShopListing = () => {
   const [deliveryDetails, setDeliveryDetails] = useState({
     customer_name: '', customer_phone: '', address_line: '', city: '', zip_code: ''
   });
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      if (window.innerWidth >= 768) {
+        setIsMenuOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     // Check if user is logged in
@@ -290,10 +304,10 @@ const ShopListing = () => {
   }
 
   return (
-    <div className="listing-page" style={{ minHeight: '100vh' }}>
+    <div className="listing-page" style={{ minHeight: '100vh', width: '100%' }}>
       {/* GLOBAL NAVBAR */}
       <nav className="glass-nav" style={{ 
-        padding: '1rem 2rem', 
+        padding: isMobile ? '1rem 1.5rem' : '1rem 2rem', 
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
@@ -308,79 +322,169 @@ const ShopListing = () => {
           <h2 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#451a03', margin: 0 }}>SME Marketplace</h2>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          {user ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: '#92400e', fontWeight: '600' }}>Welcome back,</p>
-                <p style={{ margin: 0, fontSize: '0.95rem', color: '#451a03', fontWeight: '800' }}>{user.name}</p>
+        {isMobile ? (
+          <button 
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#451a03', padding: '5px' }}
+          >
+            {isMenuOpen ? <X size={28} /> : <Menu size={28} />}
+          </button>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+            {user ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#92400e', fontWeight: '600' }}>Welcome back,</p>
+                  <p style={{ margin: 0, fontSize: '0.95rem', color: '#451a03', fontWeight: '800' }}>{user.name}</p>
+                </div>
+                
+                <Link to="/cart" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: '#451a03', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s', padding: '8px 12px', borderRadius: '10px' }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.background = '#fef3c7';
+                    e.currentTarget.style.color = '#f97316';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#451a03';
+                  }}
+                >
+                  <ShoppingCart size={18} /> Cart
+                </Link>
+
+                <Link to="/orders" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: '#451a03', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s', padding: '8px 12px', borderRadius: '10px' }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.background = '#fef3c7';
+                    e.currentTarget.style.color = '#f97316';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#451a03';
+                  }}
+                >
+                  <ClipboardList size={18} /> My Orders
+                </Link>
+                <Link to="/discover" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: '#451a03', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s', padding: '8px 12px', borderRadius: '10px' }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.background = '#fef3c7';
+                    e.currentTarget.style.color = '#f97316';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#451a03';
+                  }}
+                >
+                  <Compass size={18} /> Discover
+                </Link>
+                <Link to="/profile" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: '#451a03', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s', padding: '8px 12px', borderRadius: '10px' }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.background = '#fef3c7';
+                    e.currentTarget.style.color = '#f97316';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#451a03';
+                  }}
+                >
+                  <User size={18} /> Profile
+                </Link>
+                <button 
+                  onClick={handleLogout}
+                  style={{ 
+                    background: '#fef3c7', 
+                    border: '1px solid #fbbf24', 
+                    color: '#92400e', 
+                    padding: '8px 16px', 
+                    borderRadius: '10px', 
+                    fontWeight: '700', 
+                    cursor: 'pointer',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  Logout
+                </button>
               </div>
-              
-              <Link to="/cart" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: '#451a03', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s', padding: '8px 12px', borderRadius: '10px' }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.background = '#fef3c7';
-                  e.currentTarget.style.color = '#f97316';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#451a03';
-                }}
-              >
+            ) : (
+              <Link to="/auth" className="btn-primary" style={{ textDecoration: 'none', padding: '10px 20px', fontSize: '0.9rem' }}>
+                Sign In
+              </Link>
+            )}
+          </div>
+        )}
+      </nav>
+
+      {/* MOBILE MENU DROPDOWN */}
+      {isMobile && isMenuOpen && (
+        <div style={{
+          position: 'fixed',
+          top: '64px',
+          left: 0,
+          right: 0,
+          background: 'rgba(255, 255, 255, 0.98)',
+          backdropFilter: 'blur(10px)',
+          borderBottom: '1px solid rgba(251, 191, 36, 0.3)',
+          zIndex: 999,
+          padding: '1.5rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1rem',
+          boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+          animation: 'slideIn 0.3s ease-out'
+        }}>
+          {user ? (
+            <>
+              <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #fef3c7' }}>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: '#92400e', fontWeight: '600' }}>Welcome back,</p>
+                <p style={{ margin: 0, fontSize: '1rem', color: '#451a03', fontWeight: '800' }}>{user.name}</p>
+              </div>
+              <Link to="/cart" onClick={() => setIsMenuOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px', color: '#451a03', fontWeight: '700', padding: '10px 12px', borderRadius: '10px', background: '#fef3c7' }}>
                 <ShoppingCart size={18} /> Cart
               </Link>
-
-              <Link to="/orders" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: '#451a03', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s', padding: '8px 12px', borderRadius: '10px' }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.background = '#fef3c7';
-                  e.currentTarget.style.color = '#f97316';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#451a03';
-                }}
-              >
+              <Link to="/orders" onClick={() => setIsMenuOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px', color: '#451a03', fontWeight: '700', padding: '10px 12px', borderRadius: '10px', background: '#fef3c7' }}>
                 <ClipboardList size={18} /> My Orders
               </Link>
-              <Link to="/discover" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: '#451a03', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s', padding: '8px 12px', borderRadius: '10px' }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.background = '#fef3c7';
-                  e.currentTarget.style.color = '#f97316';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#451a03';
-                }}
-              >
+              <Link to="/discover" onClick={() => setIsMenuOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px', color: '#451a03', fontWeight: '700', padding: '10px 12px', borderRadius: '10px', background: '#fef3c7' }}>
                 <Compass size={18} /> Discover
               </Link>
+              <Link to="/profile" onClick={() => setIsMenuOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px', color: '#451a03', fontWeight: '700', padding: '10px 12px', borderRadius: '10px', background: '#fef3c7' }}>
+                <User size={18} /> Profile
+              </Link>
               <button 
-                onClick={handleLogout}
+                onClick={() => { handleLogout(); setIsMenuOpen(false); }}
                 style={{ 
-                  background: '#fef3c7', 
-                  border: '1px solid #fbbf24', 
-                  color: '#92400e', 
-                  padding: '8px 16px', 
+                  background: '#fee2e2', 
+                  border: '1px solid #fca5a5', 
+                  color: '#b91c1c', 
+                  padding: '12px', 
                   borderRadius: '10px', 
                   fontWeight: '700', 
                   cursor: 'pointer',
-                  fontSize: '0.85rem'
+                  fontSize: '0.9rem',
+                  marginTop: '0.5rem'
                 }}
               >
                 Logout
               </button>
-            </div>
+            </>
           ) : (
-            <Link to="/auth" className="btn-primary" style={{ textDecoration: 'none', padding: '10px 20px', fontSize: '0.9rem' }}>
+            <Link to="/auth" onClick={() => setIsMenuOpen(false)} className="btn-primary" style={{ textDecoration: 'none', padding: '12px', fontSize: '0.95rem', textAlign: 'center' }}>
               Sign In
             </Link>
           )}
         </div>
-      </nav>
+      )}
+      
+      {/* Global CSS for animations */}
+      <style>{`
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
 
       {/* GLOBAL TOAST NOTIFICATION */}
       {orderStatus && (
         <div className="animate-fade-in" style={{ 
-          position: 'fixed', bottom: '2rem', right: '2rem', 
+          position: 'fixed', bottom: isMobile ? '1rem' : '2rem', right: isMobile ? '1rem' : '2rem', left: isMobile ? '1rem' : 'auto',
           background: orderStatus.type === 'error' ? '#ef4444' : '#f97316', 
           color: 'white', padding: '1rem 2rem', borderRadius: '12px', 
           boxShadow: '0 10px 15px -3px rgba(0,0,0,0.2)', zIndex: 2000,
@@ -391,15 +495,15 @@ const ShopListing = () => {
       )}
 
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1rem' }}>
-      <header style={{ textAlign: 'center', marginBottom: '4rem', marginTop: '2rem' }} className="animate-fade-in">
+      <header style={{ textAlign: 'center', marginBottom: isMobile ? '2.5rem' : '4rem', marginTop: isMobile ? '1rem' : '2rem' }} className="animate-fade-in">
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '12px', background: 'rgba(251, 191, 36, 0.2)', padding: '8px 20px', borderRadius: '100px', color: '#92400e', fontWeight: '700', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
           <Sparkles size={18} />
           <span>Curated for You</span>
         </div>
-        <h1 style={{ fontSize: '3.5rem', fontWeight: '800', color: '#451a03', marginBottom: '1rem', letterSpacing: '-0.025em' }}>
+        <h1 style={{ fontSize: isMobile ? '2.25rem' : '3.5rem', fontWeight: '800', color: '#451a03', marginBottom: '1rem', letterSpacing: '-0.025em', lineHeight: 1.2 }}>
           Explore Local <span style={{ color: '#f97316' }}>SME</span> Shops
         </h1>
-        <p style={{ fontSize: '1.2rem', color: '#92400e', maxWidth: '600px', margin: '0 auto' }}>
+        <p style={{ fontSize: isMobile ? '1rem' : '1.2rem', color: '#92400e', maxWidth: '600px', margin: '0 auto', padding: '0 10px' }}>
           Discover unique products from verified local vendors, all powered by our intelligent AI platform.
         </p>
       </header>
@@ -412,9 +516,9 @@ const ShopListing = () => {
       ) : (
         <>
           {/* SHOPS SECTION */}
-          <section style={{ marginBottom: '8rem' }}>
-            <div style={{ marginBottom: '3rem' }}>
-              <h2 style={{ fontSize: '2.5rem', fontWeight: '900', color: '#451a03', margin: 0, letterSpacing: '-0.03em' }}>
+          <section style={{ marginBottom: isMobile ? '4rem' : '8rem' }}>
+            <div style={{ marginBottom: isMobile ? '1.5rem' : '3rem', textAlign: isMobile ? 'center' : 'left' }}>
+              <h2 style={{ fontSize: isMobile ? '1.75rem' : '2.5rem', fontWeight: '900', color: '#451a03', margin: 0, letterSpacing: '-0.03em' }}>
                 Verified <span style={{ color: '#f97316' }}>SME</span> Shops
               </h2>
               <p style={{ color: '#92400e', opacity: 0.7, fontWeight: '600', marginTop: '0.5rem' }}>Browse curated local businesses near you</p>
@@ -489,19 +593,19 @@ const ShopListing = () => {
           {/* HYBRID AI + LOCATION RECOMMENDATIONS SECTION */}
           {user && (
             <section style={{ 
-              marginBottom: '8rem', padding: '4rem', 
+              marginBottom: isMobile ? '4rem' : '8rem', padding: isMobile ? '2rem 1.25rem' : '4rem', 
               background: 'linear-gradient(165deg, #fffcf0 0%, #fff 100%)', 
-              borderRadius: '48px', border: '1px solid #fef3c7',
+              borderRadius: isMobile ? '24px' : '48px', border: '1px solid #fef3c7',
               boxShadow: '0 20px 40px -20px rgba(251, 191, 36, 0.15)'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '4rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'flex-end', marginBottom: isMobile ? '2rem' : '4rem' }}>
+                <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', gap: isMobile ? '12px' : '20px' }}>
                   <div style={{ background: 'linear-gradient(135deg, #f97316, #eab308)', padding: '14px', borderRadius: '20px', color: 'white', boxShadow: '0 15px 30px rgba(249, 115, 22, 0.3)' }}>
                     <Sparkles size={32} />
                   </div>
                   <div>
-                    <h2 style={{ fontSize: '2.5rem', fontWeight: '900', color: '#451a03', margin: 0, letterSpacing: '-0.03em' }}>AI Recommended for You</h2>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '1.1rem', color: '#92400e', fontWeight: '600' }}>Hybrid intelligence: Content + Collaborative + Location + Trending</p>
+                    <h2 style={{ fontSize: isMobile ? '1.75rem' : '2.5rem', fontWeight: '900', color: '#451a03', margin: 0, letterSpacing: '-0.03em' }}>AI Recommended for You</h2>
+                    <p style={{ margin: '4px 0 0 0', fontSize: isMobile ? '0.9rem' : '1.1rem', color: '#92400e', fontWeight: '600' }}>Hybrid intelligence: Content + Collaborative + Location + Trending</p>
                   </div>
                 </div>
               </div>
@@ -588,9 +692,9 @@ const ShopListing = () => {
           )}
 
           {/* ALL PRODUCTS SECTION */}
-          <section style={{ marginBottom: '4rem' }}>
-            <div style={{ marginBottom: '3rem' }}>
-              <h2 style={{ fontSize: '2.5rem', fontWeight: '900', color: '#451a03', margin: 0, letterSpacing: '-0.03em' }}>Explore All Products</h2>
+          <section style={{ marginBottom: isMobile ? '2.5rem' : '4rem' }}>
+            <div style={{ marginBottom: isMobile ? '1.5rem' : '3rem', textAlign: isMobile ? 'center' : 'left' }}>
+              <h2 style={{ fontSize: isMobile ? '1.75rem' : '2.5rem', fontWeight: '900', color: '#451a03', margin: 0, letterSpacing: '-0.03em' }}>Explore All Products</h2>
               <p style={{ color: '#92400e', opacity: 0.7, fontWeight: '600', marginTop: '0.5rem' }}>Discovery unique items from our global SME catalog</p>
             </div>
 

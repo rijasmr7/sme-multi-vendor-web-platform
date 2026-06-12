@@ -17,6 +17,13 @@ const NearbyVendors = () => {
   const [customerLocation, setCustomerLocation] = useState(null);
   const [viewMode, setViewMode] = useState('map'); // 'map' or 'list'
 
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setError('Geolocation is not supported by your browser.');
@@ -77,12 +84,12 @@ const NearbyVendors = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--background)' }}>
+    <div className="discover-page" style={{ minHeight: '100vh', background: 'var(--background)', width: '100%' }}>
 
       {/* Hero Header */}
       <div style={{
         background: 'linear-gradient(135deg, #451a03 0%, #78350f 50%, #92400e 100%)',
-        padding: '3rem 1.5rem 4rem',
+        padding: isMobile ? '2rem 1.25rem 3rem' : '3rem 1.5rem 4rem',
         position: 'relative',
         overflow: 'hidden'
       }}>

@@ -12,6 +12,13 @@ function ShopCart() {
   const [user, setUser] = useState(null);
   const [orderStatus, setOrderStatus] = useState(null);
   const [orderLoading, setOrderLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Checkout Modal State
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
@@ -197,7 +204,7 @@ function ShopCart() {
     <div style={{ minHeight: '100vh', background: backgroundColor }}>
       {/* NAVIGATION */}
       <nav className="glass-nav" style={{
-        padding: '1rem 2rem',
+        padding: isMobile ? '1rem 1.25rem' : '1rem 2rem',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -206,23 +213,36 @@ function ShopCart() {
         position: 'sticky',
         top: 0,
         zIndex: 1000,
-        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
+        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+        boxSizing: 'border-box',
+        width: '100%'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <Link to={`/shop/${id}`} style={{ color: primaryColor, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '700', fontSize: '0.9rem' }}>
-            <ChevronLeft size={20} /> Back to Shop
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.5rem' : '1.5rem', minWidth: 0 }}>
+          <Link to={`/shop/${id}`} style={{ color: primaryColor, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '700', fontSize: '0.9rem', flexShrink: 0 }}>
+            <ChevronLeft size={20} /> {!isMobile && "Back to Shop"}
           </Link>
-          <div style={{ width: '1px', height: '24px', background: '#e2e8f0' }}></div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '800', color: textColor, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ShoppingCart size={22} /> Cart at {shop.shopName}
+          <div style={{ width: '1px', height: '24px', background: '#e2e8f0', flexShrink: 0 }}></div>
+          <h2 style={{ fontSize: isMobile ? '1.05rem' : '1.25rem', fontWeight: '800', color: textColor, margin: 0, display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+            <ShoppingCart size={isMobile ? 18 : 22} style={{ flexShrink: 0 }} />
+            <span style={{ flexShrink: 0 }}>Cart at&nbsp;</span>
+            <span style={{
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: isMobile ? '100px' : 'none'
+            }} title={shop.shopName}>
+              {shop.shopName}
+            </span>
           </h2>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ margin: 0, fontSize: '0.75rem', color: textColor, opacity: 0.7, fontWeight: '600' }}>Logged in as</p>
-            <p style={{ margin: 0, fontSize: '0.9rem', color: textColor, fontWeight: '800' }}>{user.name}</p>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.5rem' : '1rem', flexShrink: 0 }}>
+          {!isMobile && (
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: textColor, opacity: 0.7, fontWeight: '600' }}>Logged in as</p>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: textColor, fontWeight: '800' }}>{user.name}</p>
+            </div>
+          )}
           <button
             onClick={handleLogout}
             style={{ background: 'none', border: `1px solid ${primaryColor}`, color: primaryColor, padding: '4px 10px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '0.75rem' }}

@@ -470,10 +470,10 @@ const ShopView = () => {
   const filteredProducts = getFilteredProducts();
 
   return (
-    <div className="shop-view" style={{ minHeight: '100vh', paddingBottom: '4rem', background: backgroundColor }}>
+    <div className="shop-view" style={{ minHeight: '100vh', paddingBottom: '4rem', background: backgroundColor, width: '100%' }}>
       {/* SHOP NAVIGATION BAR */}
       <nav className="glass-nav" style={{ 
-        padding: '1.25rem 2rem', 
+        padding: isMobile ? '1rem 1.25rem' : '1.25rem 2rem', 
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
@@ -482,14 +482,27 @@ const ShopView = () => {
         backdropFilter: 'blur(10px)',
         position: 'sticky',
         top: 0,
-        zIndex: 1000
+        zIndex: 1000,
+        boxSizing: 'border-box',
+        width: '100%'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <Link to="/" style={{ color: primaryColor, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '700', fontSize: '0.9rem' }}>
-            <ChevronLeft size={20} /> Marketplace
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.75rem' : '1.5rem', minWidth: 0 }}>
+          <Link to="/" style={{ color: primaryColor, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '700', fontSize: '0.9rem', flexShrink: 0 }}>
+            <ChevronLeft size={20} /> {!isMobile && "Marketplace"}
           </Link>
-          <div style={{ width: '1px', height: '24px', background: '#e2e8f0' }}></div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: textColor, margin: 0 }}>{shop.shopName}</h2>
+          <div style={{ width: '1px', height: '24px', background: '#e2e8f0', flexShrink: 0 }}></div>
+          <h2 style={{ 
+            fontSize: isMobile ? '1.1rem' : '1.5rem', 
+            fontWeight: '800', 
+            color: textColor, 
+            margin: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            maxWidth: isMobile ? '140px' : 'none'
+          }} title={shop.shopName}>
+            {shop.shopName}
+          </h2>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
@@ -675,16 +688,16 @@ const ShopView = () => {
           : `linear-gradient(135deg, ${primaryColor}22, ${secondaryColor}22)`, 
         backgroundSize: 'cover',
         backgroundPosition: 'center',
-        padding: '6rem 2rem', 
+        padding: isMobile ? '3rem 1rem' : '6rem 2rem', 
         textAlign: 'center',
         marginBottom: '3rem',
         borderBottom: `1px solid ${primaryColor}11`,
         color: shop.navigationContent?.["Home_heroImageUrl"] ? '#ffffff' : textColor
       }}>
-        <h1 style={{ fontSize: '4rem', fontWeight: '900', color: shop.navigationContent?.["Home_heroImageUrl"] ? '#ffffff' : textColor, marginBottom: '1.5rem' }}>
+        <h1 style={{ fontSize: isMobile ? '2.25rem' : '4rem', fontWeight: '900', color: shop.navigationContent?.["Home_heroImageUrl"] ? '#ffffff' : textColor, marginBottom: '1.5rem', lineHeight: 1.2 }}>
           Welcome to <span style={{ color: shop.navigationContent?.["Home_heroImageUrl"] ? '#ffffff' : primaryColor }}>{shop.shopName}</span>
         </h1>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: isMobile ? '1rem' : '2rem', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: shop.navigationContent?.["Home_heroImageUrl"] ? '#f1f5f9' : textColor, opacity: 0.9, fontWeight: '600' }}><Star size={18} fill={secondaryColor} color={secondaryColor} /> 4.9 (120+ Reviews)</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: shop.navigationContent?.["Home_heroImageUrl"] ? '#f1f5f9' : textColor, opacity: 0.9, fontWeight: '600' }}><Package size={18} color={shop.navigationContent?.["Home_heroImageUrl"] ? '#ffffff' : primaryColor} /> Fast Delivery</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: shop.navigationContent?.["Home_heroImageUrl"] ? '#f1f5f9' : textColor, opacity: 0.9, fontWeight: '600' }}><Phone size={18} color={shop.navigationContent?.["Home_heroImageUrl"] ? '#ffffff' : primaryColor} /> Verified Vendor</div>
@@ -696,9 +709,9 @@ const ShopView = () => {
         {isProductLink(activeLink) ? (
           /* --- PRODUCTS CATALOG VIEW --- */
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'flex-end', gap: isMobile ? '12px' : '0', marginBottom: '2.5rem' }}>
               <div>
-                <h2 style={{ fontSize: '2.25rem', fontWeight: '800', color: textColor, marginBottom: '0.5rem' }}>Our Collection</h2>
+                <h2 style={{ fontSize: isMobile ? '1.75rem' : '2.25rem', fontWeight: '800', color: textColor, marginBottom: '0.5rem' }}>Our Collection</h2>
                 <div style={{ width: '80px', height: '6px', background: primaryColor, borderRadius: '10px' }}></div>
               </div>
               <div style={{ color: textColor, opacity: 0.6, fontWeight: '600', fontSize: '0.9rem' }}>Showing {filteredProducts.length} results</div>
@@ -894,8 +907,8 @@ const ShopView = () => {
       </div>
 
       {/* FOOTER */}
-      <footer style={{ marginTop: '8rem', padding: '4rem 2rem', background: textColor, color: backgroundColor, borderRadius: '40px 40px 0 0' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '3rem' }}>
+      <footer style={{ marginTop: isMobile ? '4rem' : '8rem', padding: isMobile ? '2.5rem 1rem' : '4rem 2rem', background: textColor, color: backgroundColor, borderRadius: '40px 40px 0 0' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: isMobile ? '2rem' : '3rem' }}>
           <div>
             <h3 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '1.5rem' }}>{shop.shopName}</h3>
             <p style={{ opacity: 0.7, fontSize: '0.9rem' }}>A locally verified business powered by our AI SME platform.</p>

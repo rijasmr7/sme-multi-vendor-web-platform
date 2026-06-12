@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { Package, ChevronLeft, Clock, CheckCircle, XCircle, Filter, ShoppingBag, Loader2, AlertCircle } from 'lucide-react';
+import { Package, ChevronLeft, Clock, CheckCircle, XCircle, Filter, ShoppingBag, Loader2, AlertCircle, Menu, X } from 'lucide-react';
 
 const GATEWAY_URL = 'http://localhost:5000';
 
@@ -19,6 +19,20 @@ function CustomerOrders() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [user, setUser] = useState(null);
   const [shops, setShops] = useState([]);
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      if (window.innerWidth >= 768) {
+        setIsMenuOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     // Fetch shops to map vendor_id to shop names
@@ -92,10 +106,10 @@ function CustomerOrders() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fffbeb' }}>
+    <div className="orders-page" style={{ minHeight: '100vh', background: '#fffbeb', width: '100%' }}>
       {/* NAVIGATION */}
       <nav className="glass-nav" style={{
-        padding: '1rem 2rem',
+        padding: isMobile ? '1rem 1.5rem' : '1rem 2rem',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -105,27 +119,90 @@ function CustomerOrders() {
         top: 0,
         zIndex: 1000
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.75rem' : '1.5rem' }}>
           <Link to="/" style={{ color: '#f97316', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '700', fontSize: '0.9rem' }}>
-            <ChevronLeft size={20} /> Marketplace
+            <ChevronLeft size={20} /> {!isMobile && "Marketplace"}
           </Link>
           <div style={{ width: '1px', height: '24px', background: '#e2e8f0' }}></div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#451a03', margin: 0 }}>My Orders</h2>
+          <h2 style={{ fontSize: isMobile ? '1.1rem' : '1.25rem', fontWeight: '800', color: '#451a03', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Package size={isMobile ? 18 : 22} /> My Orders
+          </h2>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ margin: 0, fontSize: '0.75rem', color: '#92400e', opacity: 0.7, fontWeight: '600' }}>Logged in as</p>
-            <p style={{ margin: 0, fontSize: '0.9rem', color: '#451a03', fontWeight: '800' }}>{user.name}</p>
+        {isMobile ? (
+          <button 
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#451a03', padding: '5px' }}
+          >
+            {isMenuOpen ? <X size={28} /> : <Menu size={28} />}
+          </button>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: '#92400e', opacity: 0.7, fontWeight: '600' }}>Logged in as</p>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: '#451a03', fontWeight: '800' }}>{user.name}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              style={{ background: 'none', border: '1px solid #f97316', color: '#f97316', padding: '4px 10px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '0.75rem' }}
+            >
+              Logout
+            </button>
           </div>
-          <button
-            onClick={handleLogout}
-            style={{ background: 'none', border: '1px solid #f97316', color: '#f97316', padding: '4px 10px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '0.75rem' }}
+        )}
+      </nav>
+
+      {/* MOBILE MENU DROPDOWN */}
+      {isMobile && isMenuOpen && (
+        <div style={{
+          position: 'fixed',
+          top: '64px',
+          left: 0,
+          right: 0,
+          background: 'rgba(255, 255, 255, 0.98)',
+          backdropFilter: 'blur(10px)',
+          borderBottom: '1px solid rgba(251, 191, 36, 0.3)',
+          zIndex: 999,
+          padding: '1.5rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1rem',
+          boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+          animation: 'slideIn 0.3s ease-out'
+        }}>
+          <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #fef3c7' }}>
+            <p style={{ margin: 0, fontSize: '0.75rem', color: '#92400e', fontWeight: '600' }}>Logged in as</p>
+            <p style={{ margin: 0, fontSize: '1rem', color: '#451a03', fontWeight: '800' }}>{user.name}</p>
+          </div>
+          <Link to="/" onClick={() => setIsMenuOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px', color: '#451a03', fontWeight: '700', padding: '10px 12px', borderRadius: '10px', background: '#fef3c7' }}>
+            <ChevronLeft size={18} /> Marketplace
+          </Link>
+          <button 
+            onClick={() => { handleLogout(); setIsMenuOpen(false); }}
+            style={{ 
+              background: '#fee2e2', 
+              border: '1px solid #fca5a5', 
+              color: '#b91c1c', 
+              padding: '12px', 
+              borderRadius: '10px', 
+              fontWeight: '700', 
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+              marginTop: '0.5rem'
+            }}
           >
             Logout
           </button>
         </div>
-      </nav>
+      )}
+
+      {/* Global CSS for animations */}
+      <style>{`
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
 
       {/* CONTENT */}
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '2rem 1rem' }}>

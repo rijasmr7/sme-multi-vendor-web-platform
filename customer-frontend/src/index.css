@@ -20,6 +20,13 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+html {
+  overflow-x: hidden;
 }
 
 body {
@@ -28,6 +35,14 @@ body {
   color: var(--text-main);
   line-height: 1.5;
   overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
+}
+
+#root {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 
 /* Custom Leaflet Map Styles */
@@ -57,6 +72,9 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 
 /* Glassmorphism Classes */
@@ -76,6 +94,11 @@ body {
   position: sticky;
   top: 0;
   z-index: 1000;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* Animations */
@@ -91,16 +114,20 @@ body {
 /* Grid Layouts */
 .shop-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: 2rem;
   padding: 2rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .product-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 1.5rem;
   padding: 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Buttons */
@@ -131,9 +158,40 @@ body {
 }
 
 /* Responsive Utilities */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .shop-grid, .product-grid {
     grid-template-columns: 1fr;
     padding: 1rem;
+    gap: 1rem;
   }
 }
+
+/* Global overflow protection for all page root containers */
+.listing-page,
+.cart-page,
+.orders-page,
+.shop-page,
+.shop-view,
+.discover-page {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Prevent any fixed-width or flex element from causing horizontal scroll */
+@media (max-width: 768px) {
+  nav {
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-x: clip;
+    box-sizing: border-box;
+  }
+
+  /* Wrap flex rows that may overflow on small screens */
+  .glass-card > div[style*="display: flex"],
+  .glass-card > div[style*="display:flex"] {
+    flex-wrap: wrap;
+  }
+}
+
