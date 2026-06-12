@@ -19,6 +19,7 @@ function CustomerOrders() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [user, setUser] = useState(null);
   const [shops, setShops] = useState([]);
+  const [payingOrderId, setPayingOrderId] = useState(null);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -82,6 +83,26 @@ function CustomerOrders() {
       setError('Failed to load orders. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePayNow = async (orderId) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setPayingOrderId(orderId);
+    try {
+      const response = await axios.put(`${GATEWAY_URL}/orders/${orderId}/pay`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        fetchOrders();
+      }
+    } catch (err) {
+      console.error('Error paying for order:', err);
+      alert('Failed to process payment. Please try again.');
+    } finally {
+      setPayingOrderId(null);
     }
   };
 
@@ -341,6 +362,43 @@ function CustomerOrders() {
                           <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: '#f97316' }}>LKR {parseFloat(order.total_price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>
                         </div>
                       </div>
+
+                      {order.status === 'pending' && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                          <button
+                            onClick={() => handlePayNow(order.id)}
+                            disabled={payingOrderId === order.id}
+                            style={{
+                              background: '#f97316',
+                              color: 'white',
+                              border: 'none',
+                              padding: '8px 20px',
+                              borderRadius: '8px',
+                              fontWeight: '700',
+                              cursor: payingOrderId === order.id ? 'default' : 'pointer',
+                              fontSize: '0.85rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              opacity: payingOrderId === order.id ? 0.7 : 1,
+                              transition: 'all 0.2s ease',
+                              boxShadow: '0 4px 12px rgba(249, 115, 22, 0.2)',
+                              fontFamily: 'Outfit, sans-serif'
+                            }}
+                            onMouseEnter={e => { if (payingOrderId !== order.id) e.currentTarget.style.background = '#ea580c'; }}
+                            onMouseLeave={e => { if (payingOrderId !== order.id) e.currentTarget.style.background = '#f97316'; }}
+                          >
+                            {payingOrderId === order.id ? (
+                              <>
+                                <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                Processing...
+                              </>
+                            ) : (
+                              'Pay Now'
+                            )}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

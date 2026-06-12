@@ -174,6 +174,40 @@ const deleteOrderAdmin = async (req, res) => {
     }
 };
 
+const payOrder = async (req, res) => {
+    const { id } = req.params; // order id
+    const customer_id = req.user.id; // From JWT
+
+    try {
+        const updatedOrder = await orderService.payOrder(id, customer_id);
+        sendSuccess(res, updatedOrder, 200);
+    } catch (error) {
+        console.error('Payment Error:', error.message);
+        
+        if (error.message.includes('Unauthorized')) {
+            return sendError(res, error.message, 403);
+        }
+        if (error.message.includes('not pending') || error.message.includes('Cannot change status')) {
+            return sendError(res, error.message, 400);
+        }
+        if (error.message.includes('not found')) {
+            return sendError(res, error.message, 404);
+        }
+
+        sendError(res, 'Failed to pay/confirm order', 500);
+    }
+};
+
+const getShopOrderStats = async (req, res) => {
+    try {
+        const stats = await orderService.getShopOrderStats();
+        sendSuccess(res, stats, 200);
+    } catch (error) {
+        console.error('Fetch Shop Order Stats Error:', error.message);
+        sendError(res, 'Failed to fetch shop order stats', 500);
+    }
+};
+
 module.exports = {
     placeOrder,
     updateStatus,
@@ -183,5 +217,7 @@ module.exports = {
     getAllOrdersInternal,
     getAllOrdersAdmin,
     updateOrderAdmin,
-    deleteOrderAdmin
+    deleteOrderAdmin,
+    payOrder,
+    getShopOrderStats
 };

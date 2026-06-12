@@ -212,6 +212,46 @@ const deleteOrderAdmin = async (orderId) => {
     return rows[0];
 };
 
+const payOrder = async (orderId, customerId) => {
+    // 1. Fetch current order to check existence and ownership
+    const checkQuery = `SELECT status, customer_id FROM orders WHERE id = $1`;
+    const { rows } = await pool.query(checkQuery, [orderId]);
+    
+    if (rows.length === 0) {
+        throw new Error('Order not found');
+    }
+
+    const order = rows[0];
+
+    // Verify ownership
+    if (order.customer_id !== parseInt(customerId)) {
+        throw new Error('Unauthorized: You do not own this order');
+    }
+
+    if (order.status !== 'pending') {
+        throw new Error('Cannot change status: Order is not pending');
+    }
+
+    const updateQuery = `
+        UPDATE orders 
+        SET status = 'confirmed' 
+        WHERE id = $1 
+        RETURNING *;
+    `;
+    const updated = await pool.query(updateQuery, [orderId]);
+    return updated.rows[0];
+};
+const getShopOrderStats = async () => {
+    const query = `
+        SELECT shop_id, COUNT(*) as order_count 
+        FROM orders 
+        WHERE shop_id IS NOT NULL
+        GROUP BY shop_id;
+    `;
+    const { rows } = await pool.query(query);
+    return rows;
+};
+
 module.exports = {
     createOrder,
     updateOrderStatus,
@@ -220,5 +260,8 @@ module.exports = {
     getLastDeliveryAddress,
     getAllOrdersAdmin,
     updateOrderAdmin,
-    deleteOrderAdmin
+    deleteOrderAdmin,
+    payOrder,
+    getShopOrderStats
 };
+

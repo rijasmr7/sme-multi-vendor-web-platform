@@ -8,6 +8,7 @@ import ShopOrders from './ShopOrders';
 import CustomerCart from './CustomerCart';
 import ShopCart from './ShopCart';
 import NearbyVendors from './components/location/NearbyVendors';
+import AllShops from './AllShops';
 import './index.css';
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
         <Routes>
           <Route path="/" element={<ShopListing />} />
           <Route path="/discover" element={<NearbyVendors />} />
+          <Route path="/shops" element={<AllShops />} />
           <Route path="/shop/:id" element={<ShopView />} />
           <Route path="/shop/:id/orders" element={<ShopOrders />} />
           <Route path="/auth" element={<CustomerAuth />} />

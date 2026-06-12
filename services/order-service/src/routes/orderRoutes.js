@@ -27,6 +27,20 @@ router.get(
     orderController.getCustomerOrders
 );
 
+// PAY FOR ORDER
+router.put(
+    '/:id/pay',
+    authenticateToken,
+    authorizeRole('customer'),
+    orderController.payOrder
+);
+
+// GET ORDER COUNT PER SHOP FOR LANDING PAGE
+router.get(
+    '/public/stats/shops',
+    orderController.getShopOrderStats
+);
+
 // INTERNAL: GET ALL ORDERS FOR AI SVD
 router.get(
     '/internal/all',

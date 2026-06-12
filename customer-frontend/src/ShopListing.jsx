@@ -58,7 +58,24 @@ const ShopListing = () => {
       try {
         const response = await axios.get(`${GATEWAY_URL}/public/shops`);
         if (response.data.success) {
-          setShops(response.data.data);
+          let loadedShops = response.data.data;
+          try {
+            const statsRes = await axios.get(`${GATEWAY_URL}/public/orders/stats/shops`);
+            if (statsRes.data.success) {
+              const statsMap = {};
+              statsRes.data.data.forEach(stat => {
+                statsMap[stat.shop_id] = parseInt(stat.order_count) || 0;
+              });
+              loadedShops = loadedShops.sort((a, b) => {
+                const countA = statsMap[a.id] || 0;
+                const countB = statsMap[b.id] || 0;
+                return countB - countA;
+              });
+            }
+          } catch (statsErr) {
+            console.warn("Could not fetch shop order stats, fallback to default order:", statsErr);
+          }
+          setShops(loadedShops);
         }
       } catch (err) {
         console.error("Error fetching shops:", err);
@@ -525,7 +542,7 @@ const ShopListing = () => {
             </div>
             
             <div className="shop-grid" style={{ padding: '0' }}>
-              {shops.length > 0 ? shops.map((shop, idx) => (
+              {shops.length > 0 ? shops.slice(0, 6).map((shop, idx) => (
                 <Link to={`/shop/${shop.id}`} key={shop.id} style={{ textDecoration: 'none' }}>
                   <div className="glass-card animate-fade-in" style={{ 
                     padding: '2.5rem', 
@@ -588,6 +605,38 @@ const ShopListing = () => {
                 </div>
               )}
             </div>
+
+            {shops.length > 6 && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '3rem' }}>
+                <Link 
+                  to="/shops" 
+                  style={{
+                    textDecoration: 'none',
+                    background: 'linear-gradient(135deg, #f97316, #eab308)',
+                    color: 'white',
+                    padding: '12px 32px',
+                    borderRadius: '30px',
+                    fontWeight: '800',
+                    fontSize: '0.95rem',
+                    boxShadow: '0 10px 20px rgba(249, 115, 22, 0.2)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 12px 24px rgba(249, 115, 22, 0.3)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 10px 20px rgba(249, 115, 22, 0.2)';
+                  }}
+                >
+                  View More Storefronts <ArrowRight size={18} />
+                </Link>
+              </div>
+            )}
           </section>
 
           {/* HYBRID AI + LOCATION RECOMMENDATIONS SECTION */}
@@ -707,8 +756,16 @@ const ShopListing = () => {
                 onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
                 onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                 >
-                  <div style={{ height: '220px', background: '#f8fafc', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1' }}>
-                    <Package size={64} style={{ opacity: 0.5 }} />
+                  <div style={{ height: '220px', background: '#f8fafc', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', overflow: 'hidden' }}>
+                    {(product.image || product.extra_data?.image) ? (
+                      <img 
+                        src={product.image || product.extra_data?.image} 
+                        alt={product.name} 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                      />
+                    ) : (
+                      <Package size={64} style={{ opacity: 0.5 }} />
+                    )}
                   </div>
                   <div>
                     <h4 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#451a03', marginBottom: '0.5rem' }}>{product.name}</h4>

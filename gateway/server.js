@@ -400,6 +400,31 @@ app.put('/orders/:id/status', async (req, res) => {
     }
 });
 
+// 2b. PUT /orders/:id/pay -> Pay/confirm order
+app.put('/orders/:id/pay', async (req, res) => {
+    try {
+        const id = req.params.id;
+        console.log(`>>> [Gateway] Forwarding PUT /orders/${id}/pay`);
+        const response = await axios.put(`${SERVICES.order}/orders/${id}/pay`, req.body, {
+            headers: { Authorization: req.headers['authorization'] }
+        });
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Order Service');
+    }
+});
+
+// GET /public/orders/stats/shops -> Get order counts per shop
+app.get('/public/orders/stats/shops', async (req, res) => {
+    try {
+        console.log(`>>> [Gateway] Forwarding GET /public/orders/stats/shops`);
+        const response = await axios.get(`${SERVICES.order}/orders/public/stats/shops`);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Order Service');
+    }
+});
+
 // 3. GET /orders/customer/:id -> Get orders for a specific customer
 app.get('/orders/customer/:id', async (req, res) => {
     try {
