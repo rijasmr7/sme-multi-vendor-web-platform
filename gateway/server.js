@@ -425,6 +425,17 @@ app.get('/public/orders/stats/shops', async (req, res) => {
     }
 });
 
+// GET /public/orders/stats/products -> Get order counts per product
+app.get('/public/orders/stats/products', async (req, res) => {
+    try {
+        console.log(`>>> [Gateway] Forwarding GET /public/orders/stats/products`);
+        const response = await axios.get(`${SERVICES.order}/orders/public/stats/products`);
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        handleError(res, error, 'Order Service');
+    }
+});
+
 // 3. GET /orders/customer/:id -> Get orders for a specific customer
 app.get('/orders/customer/:id', async (req, res) => {
     try {

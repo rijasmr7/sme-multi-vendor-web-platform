@@ -208,6 +208,16 @@ const getShopOrderStats = async (req, res) => {
     }
 };
 
+const getProductOrderStats = async (req, res) => {
+    try {
+        const stats = await orderService.getProductOrderStats();
+        sendSuccess(res, stats, 200);
+    } catch (error) {
+        console.error('Fetch Product Order Stats Error:', error.message);
+        sendError(res, 'Failed to fetch product order stats', 500);
+    }
+};
+
 module.exports = {
     placeOrder,
     updateStatus,
@@ -219,5 +229,6 @@ module.exports = {
     updateOrderAdmin,
     deleteOrderAdmin,
     payOrder,
-    getShopOrderStats
+    getShopOrderStats,
+    getProductOrderStats
 };

@@ -41,6 +41,12 @@ router.get(
     orderController.getShopOrderStats
 );
 
+// GET ORDER COUNT PER PRODUCT FOR LANDING PAGE
+router.get(
+    '/public/stats/products',
+    orderController.getProductOrderStats
+);
+
 // INTERNAL: GET ALL ORDERS FOR AI SVD
 router.get(
     '/internal/all',

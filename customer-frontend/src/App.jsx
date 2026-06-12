@@ -9,6 +9,7 @@ import CustomerCart from './CustomerCart';
 import ShopCart from './ShopCart';
 import NearbyVendors from './components/location/NearbyVendors';
 import AllShops from './AllShops';
+import AllProducts from './AllProducts';
 import './index.css';
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
           <Route path="/" element={<ShopListing />} />
           <Route path="/discover" element={<NearbyVendors />} />
           <Route path="/shops" element={<AllShops />} />
+          <Route path="/products" element={<AllProducts />} />
           <Route path="/shop/:id" element={<ShopView />} />
           <Route path="/shop/:id/orders" element={<ShopOrders />} />
           <Route path="/auth" element={<CustomerAuth />} />

@@ -252,6 +252,17 @@ const getShopOrderStats = async () => {
     return rows;
 };
 
+const getProductOrderStats = async () => {
+    const query = `
+        SELECT product_id, COUNT(*) as order_count 
+        FROM orders 
+        WHERE product_id IS NOT NULL
+        GROUP BY product_id;
+    `;
+    const { rows } = await pool.query(query);
+    return rows;
+};
+
 module.exports = {
     createOrder,
     updateOrderStatus,
@@ -262,6 +273,7 @@ module.exports = {
     updateOrderAdmin,
     deleteOrderAdmin,
     payOrder,
-    getShopOrderStats
+    getShopOrderStats,
+    getProductOrderStats
 };
 

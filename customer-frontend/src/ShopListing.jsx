@@ -89,7 +89,24 @@ const ShopListing = () => {
       try {
         const response = await axios.get(`${GATEWAY_URL}/products`);
         if (response.data.success) {
-          setProducts(response.data.data);
+          let loadedProducts = response.data.data;
+          try {
+            const statsRes = await axios.get(`${GATEWAY_URL}/public/orders/stats/products`);
+            if (statsRes.data.success) {
+              const statsMap = {};
+              statsRes.data.data.forEach(stat => {
+                statsMap[stat.product_id] = parseInt(stat.order_count) || 0;
+              });
+              loadedProducts = loadedProducts.sort((a, b) => {
+                const countA = statsMap[a.name] || 0;
+                const countB = statsMap[b.name] || 0;
+                return countB - countA;
+              });
+            }
+          } catch (statsErr) {
+            console.warn("Could not fetch product order stats, fallback to default order:", statsErr);
+          }
+          setProducts(loadedProducts);
         }
       } catch (err) {
         console.error("Error fetching products:", err);
@@ -727,7 +744,7 @@ const ShopListing = () => {
                            <button onClick={() => { trackRecommendationClick(rec); handleAddToCart(rec); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: '2px solid #f97316', color: '#f97316', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#f9731611'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>Add to Cart</button>
                            <button onClick={() => { trackRecommendationClick(rec); handleOrder(rec); }} style={{ flex: 1, padding: '10px', background: '#f97316', border: 'none', color: 'white', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.9} onMouseOut={e => e.currentTarget.style.opacity = 1}>Buy Now</button>
                          </div>
-                         <Link to={`/shop/${rec.vendor_id}`} onClick={() => trackRecommendationClick(rec)} style={{ textAlign: 'center', background: '#451a03', color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.9} onMouseOut={e => e.currentTarget.style.opacity = 1}>View Shop</Link>
+                         <Link to={`/shop/${shops.find(s => s.vendor_id == rec.vendor_id)?.id || rec.vendor_id}`} onClick={() => trackRecommendationClick(rec)} style={{ textAlign: 'center', background: '#451a03', color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.9} onMouseOut={e => e.currentTarget.style.opacity = 1}>View Shop</Link>
                        </div>
                      </div>
                    ))}
@@ -748,7 +765,7 @@ const ShopListing = () => {
             </div>
 
             <div className="product-grid" style={{ padding: '0' }}>
-              {products.length > 0 ? products.map((product, idx) => (
+              {products.length > 0 ? products.slice(0, 6).map((product, idx) => (
                 <div key={idx} className="glass-card" style={{ 
                     padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem',
                     transition: 'all 0.3s ease' 
@@ -781,13 +798,45 @@ const ShopListing = () => {
                       <button onClick={() => handleAddToCart(product)} style={{ flex: 1, padding: '10px', background: 'transparent', border: '2px solid #f97316', color: '#f97316', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#f9731611'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>Add to Cart</button>
                       <button onClick={() => handleOrder(product)} style={{ flex: 1, padding: '10px', background: '#f97316', border: 'none', color: 'white', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.9} onMouseOut={e => e.currentTarget.style.opacity = 1}>Buy Now</button>
                     </div>
-                    <Link to={`/shop/${product.vendor_id}`} style={{ textAlign: 'center', background: '#451a03', color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.9} onMouseOut={e => e.currentTarget.style.opacity = 1}>View Shop</Link>
+                    <Link to={`/shop/${shops.find(s => s.vendor_id == product.vendor_id)?.id || product.vendor_id}`} style={{ textAlign: 'center', background: '#451a03', color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '10px', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = 0.9} onMouseOut={e => e.currentTarget.style.opacity = 1}>View Shop</Link>
                   </div>
                 </div>
               )) : (
                 <p style={{ gridColumn: '1/-1', textAlign: 'center', color: '#64748b', padding: '4rem' }}>No products available yet.</p>
               )}
             </div>
+
+            {products.length > 6 && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '3rem' }}>
+                <Link 
+                  to="/products" 
+                  style={{
+                    textDecoration: 'none',
+                    background: 'linear-gradient(135deg, #f97316, #eab308)',
+                    color: 'white',
+                    padding: '12px 32px',
+                    borderRadius: '30px',
+                    fontWeight: '800',
+                    fontSize: '0.95rem',
+                    boxShadow: '0 10px 20px rgba(249, 115, 22, 0.2)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 12px 24px rgba(249, 115, 22, 0.3)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 10px 20px rgba(249, 115, 22, 0.2)';
+                  }}
+                >
+                  View More Products <ArrowRight size={18} />
+                </Link>
+              </div>
+            )}
           </section>
         </>
       )}

@@ -346,9 +346,6 @@ function LiveShopDashboard({ shop, products, orders, onBack, activeTab, setActiv
                 <button onClick={onEditStore} style={{ flex: 1, background: 'white', color: primary, border: `2px solid ${primary}`, padding: '12px 24px', borderRadius: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                   Edit Store Feature <Edit3 size={18} />
                 </button>
-                <button onClick={() => window.open(`http://localhost:5174/shop/${shop.id}`, '_blank')} style={{ flex: 1, background: primary, color: 'white', border: 'none', padding: '12px 24px', borderRadius: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                  Go to Store <Eye size={18} />
-                </button>
               </div>
             </div>
 
