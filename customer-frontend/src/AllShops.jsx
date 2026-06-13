@@ -103,13 +103,32 @@ const AllShops = () => {
           </button>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+            <Link to="/shops" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: '#451a03', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s', padding: '8px 12px', borderRadius: '10px' }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = '#fef3c7';
+                e.currentTarget.style.color = '#f97316';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = '#451a03';
+              }}
+            >
+              Shops
+            </Link>
+            <Link to="/products" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: '#451a03', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s', padding: '8px 12px', borderRadius: '10px' }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = '#fef3c7';
+                e.currentTarget.style.color = '#f97316';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = '#451a03';
+              }}
+            >
+              Products
+            </Link>
             {user ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <div style={{ textAlign: 'right' }}>
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#92400e', fontWeight: '600' }}>Welcome back,</p>
-                  <p style={{ margin: 0, fontSize: '0.95rem', color: '#451a03', fontWeight: '800' }}>{user.name}</p>
-                </div>
-                
                 <Link to="/cart" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: '#451a03', fontWeight: '700', fontSize: '0.9rem', transition: 'all 0.2s', padding: '8px 12px', borderRadius: '10px' }}
                   onMouseOver={(e) => {
                     e.currentTarget.style.background = '#fef3c7';
@@ -147,6 +166,12 @@ const AllShops = () => {
                 >
                   <Compass size={18} /> Discover
                 </Link>
+
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#92400e', fontWeight: '600' }}>Welcome back,</p>
+                  <p style={{ margin: 0, fontSize: '0.95rem', color: '#451a03', fontWeight: '800' }}>{user.name}</p>
+                </div>
+
                 <button 
                   onClick={handleLogout}
                   style={{ 
@@ -190,6 +215,12 @@ const AllShops = () => {
           boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
           animation: 'slideIn 0.3s ease-out'
         }}>
+          <Link to="/shops" onClick={() => setIsMenuOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px', color: '#451a03', fontWeight: '700', padding: '10px 12px', borderRadius: '10px', background: '#fef3c7' }}>
+            <Compass size={18} /> Shops
+          </Link>
+          <Link to="/products" onClick={() => setIsMenuOpen(false)} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px', color: '#451a03', fontWeight: '700', padding: '10px 12px', borderRadius: '10px', background: '#fef3c7' }}>
+            <Compass size={18} /> Products
+          </Link>
           {user ? (
             <>
               <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #fef3c7' }}>
