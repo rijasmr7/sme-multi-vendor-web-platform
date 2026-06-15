@@ -51,7 +51,7 @@ const getAllProducts = async (req, res) => {
 const getVendorProducts = async (req, res) => {
     const { vendorId } = req.params;
 
-    // 🔒 Security Check: Ensure they are only fetching their own products
+    //Security Check: Ensure they are only fetching their own products
     if (String(vendorId) !== String(req.userId)) {
         return sendError(res, 'Unauthorized: You can only view your own products', 403);
     }

@@ -70,6 +70,7 @@ function Generator({ primaryColor, setPrimaryColor, onShopGenerated }) {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isPublished, setIsPublished] = useState(false);
+  const [activePreview, setActivePreview] = useState('desktop'); // 'desktop' or 'mobile'
 
   // Location-related States
   const [shopLocation, setShopLocation] = useState(null); // { lat, lon, address }
@@ -378,6 +379,7 @@ function Generator({ primaryColor, setPrimaryColor, onShopGenerated }) {
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        width: '100%',
         overflow: 'hidden'
       }}>
         {/* MINI-SITE NAV */}
@@ -579,7 +581,7 @@ function Generator({ primaryColor, setPrimaryColor, onShopGenerated }) {
               Enter your location for your customers to easily find you on the map.
             </p>
 
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
               <input 
                 type="text" 
                 placeholder="Search location (e.g. 5th Avenue, New York)"
@@ -741,14 +743,7 @@ function Generator({ primaryColor, setPrimaryColor, onShopGenerated }) {
 
       {/* Editable Results & Mini-Site Preview Section */}
       {!isLoading && !successMsg && products.length > 0 && shopData && (
-        <div className="workspace-grid" style={{ 
-          display: 'grid', 
-          gridTemplateColumns: isMobileLayout ? '1fr' : '1fr 1.6fr', 
-          gap: '2.5rem', 
-          marginTop: '2rem',
-          width: '100%',
-          maxWidth: '1400px'
-        }}>
+        <div className="workspace-grid">
           
           {/* LEFT: Editor Area */}
           <section className="results-container" style={{ marginTop: 0 }}>
@@ -815,25 +810,73 @@ function Generator({ primaryColor, setPrimaryColor, onShopGenerated }) {
             </div>
           </section>
 
-          {/* RIGHT: Dual Previews (Desktop & Mobile) */}
-          <div style={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            gap: '2.5rem', 
-            position: isMobileLayout ? 'static' : 'sticky', 
-            top: '20px',
-            alignSelf: 'start',
-            width: '100%'
-          }}>
+          {/* RIGHT: Previews (Desktop & Mobile) */}
+          <div className="previews-container">
+            {/* Toggle switch for preview type on mobile/tablet viewports */}
+            {isMobileLayout && (
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                gap: '0.8rem', 
+                marginBottom: '1.2rem',
+                background: 'rgba(255, 255, 255, 0.05)',
+                padding: '6px',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                width: '100%'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setActivePreview('desktop')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: activePreview === 'desktop' ? 'linear-gradient(135deg, #14b8a6, #0f766e)' : 'transparent',
+                    color: activePreview === 'desktop' ? '#fff' : '#94a3b8',
+                    fontWeight: '600',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: activePreview === 'desktop' ? '0 4px 12px rgba(20, 184, 166, 0.2)' : 'none'
+                  }}
+                >
+                  Desktop Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivePreview('mobile')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: activePreview === 'mobile' ? 'linear-gradient(135deg, #14b8a6, #0f766e)' : 'transparent',
+                    color: activePreview === 'mobile' ? '#fff' : '#94a3b8',
+                    fontWeight: '600',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: activePreview === 'mobile' ? '0 4px 12px rgba(20, 184, 166, 0.2)' : 'none'
+                  }}
+                >
+                  Mobile Preview
+                </button>
+              </div>
+            )}
+
             {/* Desktop Preview Frame */}
             <div style={{ 
-              display: 'flex', 
+              display: (!isMobileLayout || activePreview === 'desktop') ? 'flex' : 'none', 
               flexDirection: 'column', 
               borderRadius: '12px', 
               overflow: 'hidden', 
               border: '1px solid rgba(255,255,255,0.1)', 
               boxShadow: '0 10px 30px rgba(0,0,0,0.3)', 
-              background: '#1e293b' 
+              background: '#1e293b',
+              width: '100%',
+              minWidth: '0'
             }}>
               {/* Fake Browser Top Bar */}
               <div style={{ 
@@ -869,13 +912,18 @@ function Generator({ primaryColor, setPrimaryColor, onShopGenerated }) {
               </div>
               
               {/* Preview Viewport */}
-              <div style={{ height: '380px', overflowY: 'auto' }}>
+              <div style={{ height: '380px', overflowY: 'auto', overflowX: 'hidden', width: '100%' }}>
                 {renderStorePreview(false)}
               </div>
             </div>
 
             {/* Mobile Preview Frame */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+            <div style={{ 
+              display: (!isMobileLayout || activePreview === 'mobile') ? 'flex' : 'none', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              width: '100%' 
+            }}>
               <div style={{ 
                 width: '100%',
                 maxWidth: '340px', 
@@ -932,7 +980,7 @@ function Generator({ primaryColor, setPrimaryColor, onShopGenerated }) {
                 </div>
                 
                 {/* Preview Viewport */}
-                <div style={{ height: '480px', overflowY: 'auto' }}>
+                <div style={{ height: '480px', overflowY: 'auto', overflowX: 'hidden', width: '100%' }}>
                   {renderStorePreview(true)}
                 </div>
               </div>

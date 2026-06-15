@@ -5,7 +5,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const knowledgeBase = {
     fruit: {
-        navigation: ["Home", "Fresh Fruits", "Offers", "offers", "Contact"],
+        navigation: ["Home", "Fresh Fruits", "offers", "Contact"],
         layout: "grid"
     },
     clothing: {

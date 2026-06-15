@@ -1,0 +1,921 @@
+{
+  "info": {
+    "_postman_id": "4be7bc15-18ad-4fb8-bb0a-6e9f02ea2a37",
+    "name": "SME Platform Integration Tests",
+    "description": "Cross-service integration tests for the SME Multi-Vendor Web Platform.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Vendor Workflows",
+      "item": [
+        {
+          "name": "1.1 Register Vendor",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const randomSuffix = Math.floor(Math.random() * 1000000);",
+                  "pm.collectionVariables.set(\"vendor_email\", \"vendor_\" + randomSuffix + \"@sme.com\");"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 or 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Vendor ID returned\", function () {",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    var vendorId = jsonData.data.id || jsonData.data._id;",
+                  "    pm.expect(vendorId).to.not.be.undefined;",
+                  "    pm.collectionVariables.set(\"vendor_id\", vendorId);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{vendor_email}}\",\n  \"password\": \"Password123\",\n  \"name\": \"Organic Garden Shop\",\n  \"role\": \"vendor\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/register",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.2 Login Vendor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"JWT token returned\", function () {",
+                  "    pm.expect(jsonData.data.token).to.not.be.undefined;",
+                  "    pm.collectionVariables.set(\"vendor_token\", \"Bearer \" + jsonData.data.token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{vendor_email}}\",\n  \"password\": \"Password123\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/login",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.3 Create Product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Product ID returned\", function () {",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    var prodId = jsonData.data.id || jsonData.data._id || jsonData.data.productId;",
+                  "    pm.expect(prodId).to.not.be.undefined;",
+                  "    pm.collectionVariables.set(\"product_id\", prodId);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Fresh Organic Bananas\",\n  \"price\": 4.99,\n  \"category\": \"fruit\",\n  \"description\": \"Rich in potassium, grown organically with zero synthetic pesticides.\",\n  \"stock\": 100\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/products",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "products"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.4 Generate Shop (AI/RAG)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 or 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Shop config generated\", function () {",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.collectionVariables.set(\"shop_config\", JSON.stringify(jsonData.data));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendorId\": \"{{vendor_id}}\",\n  \"shopName\": \"Organic Garden Shop\",\n  \"businessType\": \"fruit\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/generate-shop",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "generate-shop"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.4b Save Shop",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Shop saved successfully\", function () {",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    var shopId = jsonData.data.id;",
+                  "    pm.expect(shopId).to.not.be.undefined;",
+                  "    pm.collectionVariables.set(\"shop_id\", shopId);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendorId\": {{vendor_id}},\n  \"shopName\": \"Organic Garden Shop\",\n  \"config\": {{shop_config}}\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/save-shop",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "save-shop"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.5 Publish Shop",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/shops/publish/{{shop_id}}",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "shops",
+                "publish",
+                "{{shop_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.6 Register Shop Location (PostGIS)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shopId\": {{shop_id}},\n  \"shopName\": \"Organic Garden Shop\",\n  \"lat\": 6.9271,\n  \"lon\": 79.8612\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/location/location",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "location",
+                "location"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Customer Workflows",
+      "item": [
+        {
+          "name": "2.1 Register Customer",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const randomSuffix = Math.floor(Math.random() * 1000000);",
+                  "pm.collectionVariables.set(\"customer_email\", \"customer_\" + randomSuffix + \"@sme.com\");"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 or 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customer_email}}\",\n  \"password\": \"Password123\",\n  \"name\": \"John Doe\",\n  \"role\": \"customer\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/customer/register",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "customer",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.2 Login Customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"JWT token returned\", function () {",
+                  "    pm.expect(jsonData.data.token).to.not.be.undefined;",
+                  "    pm.collectionVariables.set(\"customer_token\", \"Bearer \" + jsonData.data.token);",
+                  "    pm.collectionVariables.set(\"customer_id\", jsonData.data.user.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customer_email}}\",\n  \"password\": \"Password123\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/customer/login",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "customer",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.3 Add to Cart",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 or 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{customer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendor_id\": {{vendor_id}},\n  \"shop_id\": {{shop_id}},\n  \"product_id\": {{product_id}},\n  \"quantity\": 2,\n  \"unit_price\": 4.99\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/cart",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "cart"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.4 Checkout (Create Order)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 or 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Order created atomically\", function () {",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    var orderId = jsonData.data.id || jsonData.data._id;",
+                  "    pm.expect(orderId).to.not.be.undefined;",
+                  "    pm.collectionVariables.set(\"order_id\", orderId);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{customer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendor_id\": {{vendor_id}},\n  \"shop_id\": {{shop_id}},\n  \"product_id\": {{product_id}},\n  \"quantity\": 2,\n  \"unit_price\": 4.99,\n  \"delivery_type\": \"delivery\",\n  \"customer_name\": \"John Doe\",\n  \"customer_phone\": \"+1234567890\",\n  \"address_line\": \"123 Main St\",\n  \"city\": \"Colombo\",\n  \"zip_code\": \"10000\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/orders",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.4b Clear Customer Cart",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/cart/customer/{{customer_id}}",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "cart",
+                "customer",
+                "{{customer_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.5 Verify Cart Cleared",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Cart is empty\", function () {",
+                  "    pm.expect(jsonData.data.length).to.equal(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/cart/customer/{{customer_id}}",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "cart",
+                "customer",
+                "{{customer_id}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Discovery & Recommendations",
+      "item": [
+        {
+          "name": "3.1 Nearby Shop Discovery (PostGIS Proximity)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"List of nearby shops returned\", function () {",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/location/nearby?lat=6.9270&lon=79.8610&radius=10",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "location",
+                "nearby"
+              ],
+              "query": [
+                {
+                  "key": "lat",
+                  "value": "6.9270"
+                },
+                {
+                  "key": "lon",
+                  "value": "79.8610"
+                },
+                {
+                  "key": "radius",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.2 Get AI Recommendations with Explanations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 or 503\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 503]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{recommender_url}}/recommend/explain?user_id={{customer_id}}&product_id={{product_id}}",
+              "host": [
+                "{{recommender_url}}"
+              ],
+              "path": [
+                "recommend",
+                "explain"
+              ],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{customer_id}}"
+                },
+                {
+                  "key": "product_id",
+                  "value": "{{product_id}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Security & WebAR",
+      "item": [
+        {
+          "name": "4.1 Register Attacker Vendor (Vendor B)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const randomSuffix = Math.floor(Math.random() * 1000000);",
+                  "pm.collectionVariables.set(\"attacker_email\", \"attacker_\" + randomSuffix + \"@sme.com\");"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 or 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{attacker_email}}\",\n  \"password\": \"Password123\",\n  \"name\": \"Attacker Shop\",\n  \"role\": \"vendor\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/register",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.2 Login Attacker Vendor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"JWT token returned\", function () {",
+                  "    pm.expect(jsonData.data.token).to.not.be.undefined;",
+                  "    pm.collectionVariables.set(\"vendor_B_token\", \"Bearer \" + jsonData.data.token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{attacker_email}}\",\n  \"password\": \"Password123\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/login",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.3 BOLA Test (Vendor B updating Vendor A Product)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"BOLA security check\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 401, 403]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{vendor_B_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Hacked Product Name\",\n  \"price\": 0.01,\n  \"category\": \"fruit\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/products/{{product_id}}",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "products",
+                "{{product_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.4 WebAR OBJ Model Upload",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200, 201 or 400\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 400]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "model",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{webar_url}}/models/upload",
+              "host": [
+                "{{webar_url}}"
+              ],
+              "path": [
+                "models",
+                "upload"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "gateway_url",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "webar_url",
+      "value": "http://localhost:5006",
+      "type": "string"
+    },
+    {
+      "key": "recommender_url",
+      "value": "http://localhost:8008",
+      "type": "string"
+    },
+    {
+      "key": "vendor_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vendor_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "product_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "shop_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "customer_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "customer_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vendor_B_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "order_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "shop_config",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

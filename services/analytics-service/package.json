@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest --runInBand",
     "start": "node server.js"
   },
   "keywords": [],
@@ -17,5 +17,10 @@
     "pg": "^8.20.0",
     "redis": "^5.12.1",
     "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "cross-env": "7.0.0",
+    "jest": "29.7.0",
+    "supertest": "7.0.0"
   }
 }
